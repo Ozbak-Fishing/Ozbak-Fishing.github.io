@@ -62,6 +62,12 @@ const T = {
     sync_status: 'Sync status', synchronized: 'Synchronized', pending_sync: 'Pending', sync_offline: 'Offline',
     data_control: 'Data control (sync)', sync_blocked: 'Sync blocked', sync_wifi: 'Wi-Fi only', sync_both: 'Wi-Fi + mobile data',
     sync_now: 'Sync now', backup_btn: '⬇ Full backup (ZIP: data + photos)', backup_running: 'Preparing backup…',
+    bio_lock_title: 'Admin locked', bio_lock_text: 'This device asks for your fingerprint before opening the Admin — so nobody else can touch your lifelist.',
+    bio_unlock_btn: 'Unlock with fingerprint', bio_fallback: 'Fingerprint problem? Disable the lock with your password', bio_disable_pw: 'Disable the fingerprint lock',
+    bio_failed: 'Fingerprint check failed — try again, or use the password option below.', bio_panel_title: 'Fingerprint lock (this device)',
+    bio_on_text: 'ON — this device will ask for your fingerprint before opening the Admin. Your password still works as the fallback.', bio_turn_off: 'Turn off the fingerprint lock',
+    bio_off_text: 'OFF — turn it on to require your fingerprint before anyone can open the Admin on this device. Your password account stays the real key.', bio_turn_on: 'Turn on the fingerprint lock',
+    bio_unavailable: 'No fingerprint / face unlock available in this browser on this device.',
     sync_error: 'Sync problem: the last change could not be sent. It stays saved on this device and will be retried.',
     sync_done_msg: 'Sync done — the site copy is now up to date.',
     sync_queued_msg: 'Saved on this device — it will sync when sign-in, connection and the data control allow it.',
@@ -129,6 +135,12 @@ const T = {
     sync_status: 'État de la synchro', synchronized: 'Synchronisé', pending_sync: 'En attente', sync_offline: 'Hors ligne',
     data_control: 'Contrôle des données (synchro)', sync_blocked: 'Synchro bloquée', sync_wifi: 'Wi-Fi seulement', sync_both: 'Wi-Fi + données mobiles',
     sync_now: 'Synchroniser', backup_btn: '⬇ Sauvegarde complète (ZIP : données + photos)', backup_running: 'Préparation de la sauvegarde…',
+    bio_lock_title: 'Admin verrouillé', bio_lock_text: "Cet appareil demande ton empreinte avant d'ouvrir l'Admin — personne d'autre ne peut toucher à ta lifelist.",
+    bio_unlock_btn: "Déverrouiller avec l'empreinte", bio_fallback: "Problème d'empreinte ? Désactive le verrou avec ton mot de passe", bio_disable_pw: "Désactiver le verrou par empreinte",
+    bio_failed: "Vérification d'empreinte échouée — réessaie, ou utilise l'option mot de passe ci-dessous.", bio_panel_title: 'Verrou par empreinte (cet appareil)',
+    bio_on_text: "ACTIVÉ — cet appareil demandera ton empreinte avant d'ouvrir l'Admin. Ton mot de passe reste la solution de secours.", bio_turn_off: "Désactiver le verrou par empreinte",
+    bio_off_text: "DÉSACTIVÉ — active-le pour exiger ton empreinte avant qu'on puisse ouvrir l'Admin sur cet appareil. Ton compte par mot de passe reste la vraie clé.", bio_turn_on: "Activer le verrou par empreinte",
+    bio_unavailable: "Aucun déverrouillage par empreinte / visage disponible dans ce navigateur sur cet appareil.",
     sync_error: "Problème de synchro : le dernier changement n'a pas pu être envoyé. Il reste enregistré sur cet appareil et sera réessayé.",
     sync_done_msg: 'Synchro terminée — la copie du site est maintenant à jour.',
     sync_queued_msg: "Enregistré sur cet appareil — la synchro se fera quand la connexion, le compte admin et le contrôle des données le permettront.",
@@ -300,7 +312,7 @@ async function sbEnsureToken() {
   sbSignOut();
   return false;
 }
-function sbSignOut() { session = null; adminVerified = false; adminUnlocked = false; saveSession(); }
+function sbSignOut() { session = null; adminVerified = false; adminUnlocked = false; saveSession(); bioClearUnlocked(); }
 async function restoreSession() {
   if (!session) return;
   const was = adminUnlocked;
@@ -546,6 +558,9 @@ function saveState() {
   }
 }
 async function initApp() {
+  if (typeof window !== 'undefined' && window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+    try { bioAvailable = !!(await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch (e) { bioAvailable = false; }
+  }
   let stored = null;
   try { const raw = localStorage.getItem(LS_KEY); if (raw) stored = JSON.parse(raw); } catch (e) {}
   if (stored && Array.isArray(stored.fish)) {
@@ -856,6 +871,93 @@ function shareFish(f) {
   else prompt('Copy this link / Copiez ce lien :', url);
 }
 
+/* ---------- Fingerprint lock for the Admin (S6) ----------
+   A per-device WebAuthn (platform authenticator) gate ON TOP of the
+   Supabase password account. The password stays the real credential —
+   this lock only stops someone holding the phone from opening the
+   Admin tab. Opt-in per device (localStorage); the unlock lasts for
+   the app session (sessionStorage) and dies on sign-out. The
+   assertion signature is fully verified against the public key
+   captured at registration (ES256). Fallback if the fingerprint ever
+   fails: disable the lock by re-typing the account password. */
+const BIO_KEY = 'ozbakBioGate';
+let bioAvailable = false;
+let bioChallenge = null;
+function b64urlEncode(bytes) { let s = ''; bytes.forEach((b) => { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function b64urlDecode(str) { const s = String(str).replace(/-/g, '+').replace(/_/g, '/'); const bin = atob(s + '='.repeat((4 - (s.length % 4)) % 4)); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+/* Minimal CBOR decoder — just enough for WebAuthn attestation objects
+   (maps, arrays, ints, byte/text strings, simple values). */
+function cborDecode(bytes, offset) {
+  offset = offset || 0;
+  const b = bytes[offset]; const major = b >> 5; const ai = b & 31; let pos = offset + 1;
+  const readLen = () => { if (ai < 24) return ai; if (ai === 24) { const v = bytes[pos]; pos += 1; return v; } if (ai === 25) { const v = (bytes[pos] << 8) | bytes[pos + 1]; pos += 2; return v; } if (ai === 26) { const v = ((bytes[pos] << 24) | (bytes[pos + 1] << 16) | (bytes[pos + 2] << 8) | bytes[pos + 3]) >>> 0; pos += 4; return v; } throw new Error('CBOR length too large'); };
+  if (major === 0) return [readLen(), pos];
+  if (major === 1) return [-1 - readLen(), pos];
+  if (major === 2 || major === 3) { const len = readLen(); const v = bytes.slice(pos, pos + len); pos += len; return [major === 3 ? new TextDecoder().decode(v) : v, pos]; }
+  if (major === 4) { const len = readLen(); const arr = []; for (let i = 0; i < len; i++) { const r = cborDecode(bytes, pos); arr.push(r[0]); pos = r[1]; } return [arr, pos]; }
+  if (major === 5) { const len = readLen(); const map = new Map(); for (let i = 0; i < len; i++) { const k = cborDecode(bytes, pos); pos = k[1]; const v = cborDecode(bytes, pos); pos = v[1]; map.set(k[0], v[0]); } return [map, pos]; }
+  if (major === 7) { if (ai === 20) return [false, pos]; if (ai === 21) return [true, pos]; if (ai === 22) return [null, pos]; if (ai === 25) { pos += 2; return [0, pos]; } if (ai === 26) { pos += 4; return [0, pos]; } if (ai === 27) { pos += 8; return [0, pos]; } return [ai, pos]; }
+  throw new Error('CBOR major ' + major);
+}
+function coseToJwk(coseBytes) {
+  const parsed = cborDecode(coseBytes, 0)[0];
+  const x = parsed.get(-2), y = parsed.get(-3);
+  if (!x || !y) throw new Error('COSE key incomplete');
+  return { kty: 'EC', crv: 'P-256', x: b64urlEncode(x), y: b64urlEncode(y), ext: true };
+}
+function derToRawSig(der) {
+  let pos = 0;
+  if (der[pos++] !== 0x30) throw new Error('DER sequence');
+  let len = der[pos++]; if (len & 0x80) { const n = len & 0x7f; len = 0; for (let i = 0; i < n; i++) len = (len << 8) | der[pos++]; }
+  const readInt = () => { if (der[pos++] !== 0x02) throw new Error('DER int'); const l = der[pos++]; let v = der.slice(pos, pos + l); pos += l; while (v.length > 32 && v[0] === 0) v = v.slice(1); const out = new Uint8Array(32); out.set(v, 32 - v.length); return out; };
+  const r = readInt(), s = readInt(); const raw = new Uint8Array(64); raw.set(r, 0); raw.set(s, 32); return raw;
+}
+function bioGate() { try { const g = JSON.parse(localStorage.getItem(BIO_KEY) || 'null'); return g && g.credId && g.jwk ? g : null; } catch (e) { return null; } }
+function bioUnlocked() { try { return sessionStorage.getItem('ozbakBioUnlocked') === '1'; } catch (e) { return false; } }
+function bioSetUnlocked() { try { sessionStorage.setItem('ozbakBioUnlocked', '1'); } catch (e) {} }
+function bioClearUnlocked() { try { sessionStorage.removeItem('ozbakBioUnlocked'); } catch (e) {} }
+async function bioRegister() {
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const cred = await navigator.credentials.create({ publicKey: {
+    challenge, rp: { name: 'Ozbak Lifelist' },
+    user: { id: new TextEncoder().encode(session.user_id || 'ozbak'), name: session.email || '', displayName: session.email || '' },
+    pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+    attestation: 'none', timeout: 60000 } });
+  if (!cred) throw new Error('no credential');
+  const att = cborDecode(new Uint8Array(cred.response.attestationObject), 0)[0];
+  const authData = att.get('authData');
+  if (!(authData[32] & 0x40)) throw new Error('no attested credential data');
+  const credIdLen = (authData[53] << 8) | authData[54];
+  const credId = authData.slice(55, 55 + credIdLen);
+  const jwk = coseToJwk(authData.slice(55 + credIdLen));
+  localStorage.setItem(BIO_KEY, JSON.stringify({ credId: b64urlEncode(credId), jwk }));
+  bioSetUnlocked();
+}
+async function bioUnlock() {
+  const gate = bioGate(); if (!gate) return true;
+  bioChallenge = crypto.getRandomValues(new Uint8Array(32));
+  const assertion = await navigator.credentials.get({ publicKey: {
+    challenge: bioChallenge,
+    allowCredentials: [{ type: 'public-key', id: b64urlDecode(gate.credId) }],
+    userVerification: 'required', timeout: 60000 } });
+  if (!assertion) throw new Error('cancelled');
+  const resp = assertion.response;
+  const clientData = JSON.parse(new TextDecoder().decode(resp.clientDataJSON));
+  if (clientData.type !== 'webauthn.get' || clientData.challenge !== b64urlEncode(bioChallenge)) throw new Error('challenge mismatch');
+  const authData = new Uint8Array(resp.authenticatorData);
+  if (!(authData[32] & 0x04)) throw new Error('user verification missing');
+  const clientHash = await crypto.subtle.digest('SHA-256', resp.clientDataJSON);
+  const signed = new Uint8Array(authData.length + clientHash.byteLength);
+  signed.set(authData, 0); signed.set(new Uint8Array(clientHash), authData.length);
+  const key = await crypto.subtle.importKey('jwk', gate.jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+  const ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, derToRawSig(new Uint8Array(resp.signature)), signed);
+  if (!ok) throw new Error('bad signature');
+  bioSetUnlocked();
+  return true;
+}
+function bioDisable() { try { localStorage.removeItem(BIO_KEY); } catch (e) {} bioClearUnlocked(); }
+
 /* ----- admin ----- */
 function adminHTML() {
   if (!adminUnlocked) {
@@ -865,6 +967,14 @@ function adminHTML() {
       '<form id="loginForm"><label>' + esc(t('email')) + '</label><input type="email" id="loginEmail" autocomplete="username" required>' +
       '<label>' + esc(t('password')) + '</label><input type="password" id="loginPass" autocomplete="current-password" required>' +
       '<button class="btn" type="submit" id="loginBtn">' + esc(t('sign_in')) + '</button></form></div>';
+  }
+  if (bioGate() && !bioUnlocked()) {
+    return '<h1 style="color:var(--blue)">' + esc(t('admin_title')) + '</h1>' +
+      '<div class="panel"><h2>🔒 ' + esc(t('bio_lock_title')) + '</h2><p>' + esc(t('bio_lock_text')) + '</p><div id="adminMsg"></div>' +
+      '<button class="btn" id="bioUnlockBtn" type="button">' + esc(t('bio_unlock_btn')) + '</button>' +
+      '<p style="margin-top:16px"><button class="btn ghost" id="bioFallbackBtn" type="button">' + esc(t('bio_fallback')) + '</button></p>' +
+      '<div id="bioFallbackBox" hidden><label>' + esc(t('password')) + '</label><input type="password" id="bioPass" autocomplete="current-password">' +
+      '<button class="btn danger" id="bioDisableBtn" type="button">' + esc(t('bio_disable_pw')) + '</button></div></div>';
   }
   const pendingCount = state.outbox.length;
   const isOffline = typeof navigator !== 'undefined' && navigator && navigator.onLine === false;
@@ -882,6 +992,12 @@ function adminHTML() {
   return '<h1 style="color:var(--blue)">' + esc(t('admin_title')) + '</h1><div id="adminMsg"></div>' +
     '<div class="panel"><h3>' + esc(t('signed_in_as')) + '</h3><p>' + esc(session ? session.email || '' : '') + '</p>' +
     '<button class="btn ghost" id="signOutBtn">' + esc(t('sign_out')) + '</button></div>' +
+    '<div class="panel"><h3>' + esc(t('bio_panel_title')) + '</h3>' +
+    (bioGate()
+      ? '<p>' + esc(t('bio_on_text')) + '</p><button class="btn ghost" id="bioOffBtn" type="button">' + esc(t('bio_turn_off')) + '</button>'
+      : bioAvailable
+        ? '<p>' + esc(t('bio_off_text')) + '</p><button class="btn ghost" id="bioOnBtn" type="button">' + esc(t('bio_turn_on')) + '</button>'
+        : '<p class="small">' + esc(t('bio_unavailable')) + '</p>') + '</div>' +
     '<div class="panel"><h3>' + esc(t('sync_status')) + '</h3>' +
     '<span class="syncdot' + (pendingCount ? ' pending' : '') + '">' + syncLabel + '</span>' +
     (state.syncError ? '<div class="warn" style="margin-top:10px">' + esc(t('sync_error')) + '<br><span class="small">' + esc(state.syncError.message || '') + (state.syncError.at ? ' · ' + esc(new Date(state.syncError.at).toLocaleString()) : '') + '</span></div>' : '') +
@@ -1044,6 +1160,25 @@ function wireAdmin() {
     });
     return;
   }
+  const bioUnlockBtn = $('#bioUnlockBtn');
+  if (bioUnlockBtn) {
+    bioUnlockBtn.addEventListener('click', async () => {
+      bioUnlockBtn.disabled = true;
+      try { await bioUnlock(); render(); }
+      catch (e) { adminMsg(esc(t('bio_failed')), false); bioUnlockBtn.disabled = false; }
+    });
+    $('#bioFallbackBtn').addEventListener('click', () => { $('#bioFallbackBox').hidden = false; });
+    $('#bioDisableBtn').addEventListener('click', async () => {
+      const ok = await sbSignIn(session ? session.email || '' : '', $('#bioPass').value);
+      if (ok) { bioDisable(); render(); }
+      else adminMsg(esc(t('login_failed')), false);
+    });
+    return;
+  }
+  const bioOnBtn = $('#bioOnBtn');
+  if (bioOnBtn) bioOnBtn.addEventListener('click', async () => { try { await bioRegister(); render(); } catch (e) { adminMsg(esc(t('bio_failed')), false); } });
+  const bioOffBtn = $('#bioOffBtn');
+  if (bioOffBtn) bioOffBtn.addEventListener('click', () => { bioDisable(); render(); });
   document.querySelectorAll('input[name=syncmode]').forEach((r) => r.addEventListener('change', () => { state.syncMode = r.value; saveState(); processOutbox(false); }));
   $('#backupBtn').addEventListener('click', () => doBackup($('#backupBtn')));
   $('#syncNow').addEventListener('click', async () => {
