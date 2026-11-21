@@ -628,7 +628,7 @@ function statsHTML() {
   return '<div class="stats-grid">' +
     statBox(t('stat_year'), group((f) => (f.date || '').slice(0, 4))) +
     statBox(t('stat_place'), group((f) => placeLabel(f))) +
-    statBox(t('stat_water'), group((f) => f.category)) +
+    statBox(t('stat_water'), group((f) => (f.category === 'Freshwater' || f.category === 'Saltwater') ? f.category : '')) +
     statBox(t('stat_family'), group((f) => f.family)) + '</div>';
 }
 function homeHTML() {
