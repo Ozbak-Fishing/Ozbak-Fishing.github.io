@@ -308,6 +308,14 @@ async function restoreSession() {
 }
 
 /* ----- writes (admin JWT) ----- */
+/* Local calendar day as YYYY-MM-DD, from the device's own clock
+   (getFullYear/getMonth/getDate with zero-padding — NOT toISOString(),
+   which is UTC and can be off by a day in the evening). */
+function todayLocalISO() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
 function speciesPayload(f) {
   const water = String(f.water || (f.category === 'Variant' ? 'Freshwater' : f.category) || 'Freshwater').toLowerCase();
   return {
@@ -315,7 +323,13 @@ function speciesPayload(f) {
     family: f.family || null, water_type: water,
     category: f.gallery === 'hybrids' ? 'hybrid' : (f.gallery || 'main'),
     capture_number: f.num != null ? f.num : null,
-    capture_date: f.date || null,
+    /* capture_date is NOT NULL in Supabase (Lovable schema): sending null
+       is rejected (400 / SQLSTATE 23502) and the outbox op would retry
+       forever. An empty form date therefore falls back to the
+       publication day — the owner's rule — while an existing date is
+       never overwritten. This payload builder is the single choke point
+       for both INSERT and PATCH, so the fallback covers every write. */
+    capture_date: f.date || todayLocalISO(),
     location: composeLocation(f.country, f.place),
     country: f.country || null, place: f.place || null,
     notes: f.notes || null,
@@ -835,7 +849,12 @@ function adminHTML() {
     '<div><label>' + esc(t('f_family')) + '</label><input id="af_family"></div>' +
     '<div><label>' + esc(t('f_gallery')) + '</label><select id="af_gallery"><option value="main">Main species</option><option value="subspecies">Subspecies and Variants</option><option value="hybrids">Hybrids</option></select></div>' +
     '<div><label>' + esc(t('f_water')) + '</label><select id="af_water"><option>Freshwater</option><option>Saltwater</option><option>Variant</option></select></div>' +
-    '<div><label>' + esc(t('f_date')) + '</label><input type="date" id="af_date"></div>' +
+    /* The date input starts on today (the publication day, which is also
+       the payload fallback when left untouched) so the owner sees which
+       date will be used. fillForm() overwrites it with the fish's own
+       date whenever one is loaded — editing never alters an existing
+       date through this pre-fill. */
+    '<div><label>' + esc(t('f_date')) + '</label><input type="date" id="af_date" value="' + todayLocalISO() + '"></div>' +
     '<div><label>' + esc(t('f_country')) + '</label><input id="af_country" placeholder="Canada"></div>' +
     '<div><label>' + esc(t('f_place')) + '</label><input id="af_place" placeholder="Québec"></div>' +
     '<div><label>' + esc(t('f_inat')) + '</label><input id="af_inat" type="url" placeholder="https://www.inaturalist.org/observations/…"></div>' +
@@ -875,10 +894,11 @@ function adminMsg(html, ok) { const m = $('#adminMsg'); if (m) m.innerHTML = '<d
 let cropImg = null, cropOrig = null, cropZoom = 1, cropX = 0, cropY = 0, cropDrag = null;
 /* Photos stored by the app are always a lightened copy: max dimension
    1600 px, JPEG ~0.85. The original stays untouched in the phone gallery.
-   Both selection paths (crop Apply and crop Skip) go through the same
-   helper, so a full-resolution original can never end up in formPhoto —
-   a multi-MB dataURL is what used to overflow the persisted state and
-   silently take the photo (and the queued write) down with it. */
+   Every path into formPhoto (attach at pick time, crop Apply, crop Skip)
+   goes through the same helper, so a full-resolution original can never
+   end up in formPhoto — a multi-MB dataURL is what used to overflow the
+   persisted state and silently take the photo (and the queued write)
+   down with it. */
 const PHOTO_MAX_DIM = 1600;
 const PHOTO_JPEG_QUALITY = 0.85;
 function setFormPhotoFromImage(source) {
@@ -912,7 +932,18 @@ function wireCrop() {
     reader.onload = () => {
       cropOrig = reader.result;
       const img = new Image();
-      img.onload = () => { cropImg = img; cropZoom = 1; cropX = 0; cropY = 0; $('#cropBox').hidden = false; const z = $('#cropZoom'); if (z) z.value = 1; drawCrop(); };
+      img.onload = () => {
+        cropImg = img; cropZoom = 1; cropX = 0; cropY = 0; $('#cropBox').hidden = false; const z = $('#cropZoom'); if (z) z.value = 1; drawCrop();
+        /* Invariant: a picked photo is attached immediately; cropping
+           only refines it. The downscaled full image becomes formPhoto
+           (and the preview) as soon as the pick loads, so saving the
+           form without ever touching Apply/Skip can no longer lose the
+           photo silently — that exact sequence cost the owner his photo
+           twice. Picking a new photo while editing likewise replaces
+           the old formPhoto right here. Cancelling the picker fires no
+           change event (or no file), so nothing is touched then. */
+        setFormPhotoFromImage(cropImg);
+      };
       img.src = cropOrig;
     };
     reader.readAsDataURL(file);
@@ -924,9 +955,12 @@ function wireCrop() {
     cv.addEventListener('pointerup', () => { cropDrag = null; });
   }
   const z = $('#cropZoom'); if (z) z.addEventListener('input', () => { cropZoom = parseFloat(z.value); drawCrop(); });
-  /* Apply: the crop canvas is 480x360, already under the cap — the helper
-     re-encodes it unchanged in size. Skip: the loaded original image is
-     downscaled by the same helper instead of being kept at full size. */
+  /* Apply REPLACES the pick-time attachment with the cropped version
+     (the crop canvas is 480x360, already under the cap — the helper
+     re-encodes it unchanged in size). Skip KEEPS the full image that was
+     attached at pick time; re-applying the helper to cropImg produces
+     exactly that same attachment, so the button stays consistent and
+     harmless if the pick-time attach was somehow skipped. */
   const ap = $('#cropApply'); if (ap) ap.addEventListener('click', () => { setFormPhotoFromImage($('#cropCanvas')); });
   const sk = $('#cropSkip'); if (sk) sk.addEventListener('click', () => { setFormPhotoFromImage(cropImg); });
 }
@@ -945,7 +979,7 @@ function fillForm(f) {
 function startTransfer(id) {
   transferFromId = id; editId = null; go({ name: 'admin' });
   const f = state.fish.find((x) => x.id === id);
-  if (f && $('#fishForm')) { fillForm(f); $('#af_gallery').value = 'main'; $('#af_status').value = 'caught'; $('#formTitle').textContent = t('transfer') + ' — ' + primaryName(f); }
+  if (f && $('#fishForm')) { fillForm(f); if (!$('#af_date').value) $('#af_date').value = todayLocalISO(); $('#af_gallery').value = 'main'; $('#af_status').value = 'caught'; $('#formTitle').textContent = t('transfer') + ' — ' + primaryName(f); }
 }
 function wireAdmin() {
   const loginForm = $('#loginForm');
@@ -1084,7 +1118,9 @@ function wireAdmin() {
   });
   if (transferFromId) {
     const f = state.fish.find((x) => x.id === transferFromId);
-    if (f) { fillForm(f); $('#af_gallery').value = 'main'; $('#af_status').value = 'caught'; $('#formTitle').textContent = t('transfer') + ' — ' + primaryName(f); }
+    /* A transferred quest has no date yet: start the field on today (the
+       publication day) instead of blank — same rule as a fresh add. */
+    if (f) { fillForm(f); if (!$('#af_date').value) $('#af_date').value = todayLocalISO(); $('#af_gallery').value = 'main'; $('#af_status').value = 'caught'; $('#formTitle').textContent = t('transfer') + ' — ' + primaryName(f); }
   }
 }
 
