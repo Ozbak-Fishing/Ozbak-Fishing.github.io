@@ -37,7 +37,7 @@ const T = {
     stats: 'Statistics',
     stat_year: 'By year', stat_place: 'By country / place', stat_water: 'Freshwater vs Saltwater', stat_family: 'By family',
     search_ph: 'Search a species…',
-    all_families: 'All families', all_types: 'All types', all_places: 'All places',
+    all_families: 'All families', all_types: 'All types', all_countries: 'All countries', all_places: 'All places',
     sort_number: 'Sort: number', sort_name: 'Sort: name', sort_family: 'Sort: family',
     dir_desc: '↓ Descending', dir_asc: '↑ Ascending', priority: '★ Priority',
     species: 'species', no_results: 'No species matches your search.',
@@ -97,7 +97,7 @@ const T = {
     stats: 'Statistiques',
     stat_year: 'Par année', stat_place: 'Par pays / lieu', stat_water: 'Eau douce vs eau salée', stat_family: 'Par famille',
     search_ph: 'Rechercher une espèce…',
-    all_families: 'Toutes les familles', all_types: 'Tous types', all_places: 'Tous les lieux',
+    all_families: 'Toutes les familles', all_types: 'Tous types', all_countries: 'Tous les pays', all_places: 'Tous les lieux',
     sort_number: 'Tri : numéro', sort_name: 'Tri : nom', sort_family: 'Tri : famille',
     dir_desc: '↓ Décroissant', dir_asc: '↑ Croissant', priority: '★ Prioritaire',
     species: 'espèces', no_results: 'Aucune espèce ne correspond à votre recherche.',
@@ -533,7 +533,7 @@ function homeHTML() {
 /* ----- gallery ----- */
 const GAL_TITLE = { main: 'nav_main', subspecies: 'nav_sub', hybrids: 'nav_hyb', missing: 'nav_missing' };
 const GAL_DESC = { main: 'gal_main_d', subspecies: 'gal_sub_d', hybrids: 'gal_hyb_d', missing: 'gal_missing_d' };
-let galFilters = { q: '', family: '', type: '', place: '', sort: 'number', dir: 'desc' };
+let galFilters = { q: '', family: '', type: '', country: '', place: '', sort: 'number', dir: 'desc' };
 function galleryItems(gallery) {
   return gallery === 'missing' ? missingAll() : caught(gallery);
 }
@@ -541,13 +541,15 @@ function galleryHTML(gallery) {
   const items = galleryItems(gallery);
   const fams = [...new Set(items.map((f) => f.family).filter(Boolean))].sort();
   const types = [...new Set(items.map((f) => f.category).filter(Boolean))].sort();
-  const places = [...new Set(items.map((f) => placeLabel(f)).filter(Boolean))].sort();
+  const countries = [...new Set(items.map((f) => f.country).filter(Boolean))].sort();
+  const places = [...new Set(items.filter((f) => !galFilters.country || f.country === galFilters.country).map((f) => f.place).filter(Boolean))].sort();
   const opt = (vals, allLabel) => '<option value="">' + esc(allLabel) + '</option>' + vals.map((v) => '<option value="' + esc(v) + '">' + esc(v) + '</option>').join('');
   return '<div class="gal-head"><h1>' + esc(t(GAL_TITLE[gallery])) + '</h1><p>' + esc(t(GAL_DESC[gallery])) + '</p></div>' +
     (gallery === 'missing' && adminUnlocked ? '<div class="ok">' + esc(t('missing_admin_note')) + '</div>' : '') +
     '<div class="toolbar"><input type="search" id="gq" placeholder="' + esc(t('search_ph')) + '" value="' + esc(galFilters.q) + '">' +
     '<div class="row"><select id="gfam">' + opt(fams, t('all_families')) + '</select>' +
     '<select id="gtype">' + opt(types, t('all_types')) + '</select>' +
+    '<select id="gcountry">' + opt(countries, t('all_countries')) + '</select>' +
     '<select id="gplace">' + opt(places, t('all_places')) + '</select>' +
     '<select id="gsort"><option value="number">' + esc(t('sort_number')) + '</option><option value="name">' + esc(t('sort_name')) + '</option><option value="family">' + esc(t('sort_family')) + '</option></select>' +
     '<button id="gdir" type="button"></button></div>' +
@@ -556,13 +558,19 @@ function galleryHTML(gallery) {
     '<button id="vlist" class="' + (viewMode === 'list' ? 'on' : '') + '">☰ ' + esc(t('list')) + '</button></span></div></div>' +
     '<div id="gresults"></div>';
 }
+/* Places available in a gallery, limited to one country when one is
+   selected (all distinct places when no country is selected). */
+function placeOptionsFor(gallery, country) {
+  return [...new Set(galleryItems(gallery).filter((f) => !country || f.country === country).map((f) => f.place).filter(Boolean))].sort();
+}
 function filteredItems(gallery) {
   const q = norm(galFilters.q);
   let items = galleryItems(gallery).filter((f) => {
     if (q && !(norm(f.name_en).includes(q) || norm(f.name_fr).includes(q) || norm(f.scientific).includes(q))) return false;
     if (galFilters.family && f.family !== galFilters.family) return false;
     if (galFilters.type && f.category !== galFilters.type) return false;
-    if (galFilters.place && placeLabel(f) !== galFilters.place) return false;
+    if (galFilters.country && f.country !== galFilters.country) return false;
+    if (galFilters.place && f.place !== galFilters.place) return false;
     return true;
   });
   const questNum = (f) => { const n = parseInt(f.quest, 10); return isNaN(n) ? 9999 : n; };
@@ -610,16 +618,29 @@ function drawGalleryResults(gallery) {
   box.querySelectorAll('[data-transfer]').forEach((el) => el.addEventListener('click', (e) => { e.stopPropagation(); startTransfer(el.getAttribute('data-transfer')); }));
 }
 function wireGallery(gallery) {
-  if (window._lastGal !== gallery) { galFilters = { q: '', family: '', type: '', place: '', sort: 'number', dir: gallery === 'missing' ? 'asc' : 'desc' }; window._lastGal = gallery; }
+  if (window._lastGal !== gallery) { galFilters = { q: '', family: '', type: '', country: '', place: '', sort: 'number', dir: gallery === 'missing' ? 'asc' : 'desc' }; window._lastGal = gallery; }
   const on = () => drawGalleryResults(gallery);
   if (galFilters.family) $('#gfam').value = galFilters.family;
   if (galFilters.type) $('#gtype').value = galFilters.type;
-  if (galFilters.place) $('#gplace').value = galFilters.place;
+  /* The Place list follows the selected Country: only that country's
+     places (all places when no country is selected). A place that is no
+     longer valid after a country change resets to "all". */
+  const placeSel = $('#gplace');
+  const refreshPlaces = () => {
+    const vals = placeOptionsFor(gallery, galFilters.country);
+    if (galFilters.place && !vals.includes(galFilters.place)) galFilters.place = '';
+    placeSel.innerHTML = '<option value="">' + esc(t('all_places')) + '</option>' + vals.map((v) => '<option value="' + esc(v) + '">' + esc(v) + '</option>').join('');
+    placeSel.value = galFilters.place || '';
+  };
+  const countrySel = $('#gcountry');
+  if (countrySel) countrySel.value = galFilters.country || '';
+  refreshPlaces();
   $('#gsort').value = galFilters.sort;
   $('#gq').addEventListener('input', (e) => { galFilters.q = e.target.value; on(); });
   $('#gfam').addEventListener('change', (e) => { galFilters.family = e.target.value; on(); });
   $('#gtype').addEventListener('change', (e) => { galFilters.type = e.target.value; on(); });
-  $('#gplace').addEventListener('change', (e) => { galFilters.place = e.target.value; on(); });
+  if (countrySel) countrySel.addEventListener('change', (e) => { galFilters.country = e.target.value; refreshPlaces(); on(); });
+  placeSel.addEventListener('change', (e) => { galFilters.place = e.target.value; on(); });
   $('#gsort').addEventListener('change', (e) => { galFilters.sort = e.target.value; on(); });
   const dirBtn = $('#gdir');
   const setDirLabel = () => { dirBtn.textContent = t(galFilters.dir === 'desc' ? 'dir_desc' : 'dir_asc'); };
@@ -833,8 +854,14 @@ function wireAdmin() {
     e.preventDefault();
     const sci = $('#af_sci').value.trim();
     if (!$('#af_en').value.trim() || !$('#af_fr').value.trim() || !sci) return adminMsg(esc(t('required')));
-    /* duplicate warning (S2) */
-    const dup = state.fish.concat(state.pending).find((x) => norm(x.scientific) === norm(sci) && x.id !== editId && x.status !== 'missing');
+    /* duplicate warning (S2) — scoped to the SAME gallery as the fish being
+       added/edited: the same scientific name may legitimately exist in
+       another gallery (e.g. Carassius auratus is a main species AND, in
+       captive form, a subspecies). The fish being edited never counts
+       against itself (x.id !== editId). Transfers target 'main'. */
+    const editTarget = editId ? state.fish.find((x) => x.id === editId) : null;
+    const targetGallery = editTarget ? editTarget.gallery : $('#af_gallery').value;
+    const dup = state.fish.concat(state.pending).find((x) => norm(x.scientific) === norm(sci) && x.id !== editId && x.status !== 'missing' && x.gallery === targetGallery);
     if (dup && !confirm(t('dup_title') + ' — ' + t('dup_msg') + (dup.num ? '#' + dup.num + ' ' : '') + primaryName(dup) + ' (' + dup.scientific + '). ' + t('dup_ask'))) return;
     const waterVal = $('#af_water').value;
     const base = {

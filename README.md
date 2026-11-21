@@ -86,7 +86,11 @@ because the Lovable site still reads that string.
 - **Missing QC transfer**: the prefilled form INSERTs the species row, then
   DELETEs the `missing_species` row.
 - The duplicate-scientific-name check (S2) still runs against the in-memory
-  list, so it works offline.
+  list, so it works offline. It is scoped to the **same gallery** as the fish
+  being added/edited (and never flags a fish against itself): the same
+  scientific name may legitimately exist in another gallery — e.g.
+  *Carassius auratus* is both a main species and, in captive form, a
+  subspecies.
 
 ### Offline: pending catches + outbox
 
@@ -107,7 +111,7 @@ because the Lovable site still reads that string.
 
 ### Without any connection
 
-The app still opens and browses (service worker `ozbak-v3`, network-first
+The app still opens and browses (service worker `ozbak-v4`, network-first
 with cache fallback; last-good dataset in `localStorage`). Admin actions
 taken offline simply wait in the outbox / pending list until sync is
 possible.
@@ -117,7 +121,8 @@ possible.
 Home with counters (51 Main / 2 Subspecies / 0 Hybrids / 78 Missing QC),
 social links (real URLs), statistics (year, country/place, water, family —
 count **and** %); galleries in grid/list with EN/FR/scientific search,
-filters, sort by number/name/family in both directions (newest first by
+filters (family, type, and two location dropdowns — Country, then Place,
+the place list following the selected country), sort by number/name/family in both directions (newest first by
 default); the fish popup with Date / Country / Place on separate lines,
 notes and the iNaturalist link; EN base language with FR toggle inverting
 the primary name. The data control (Blocked / Wi-Fi only / Wi-Fi + mobile)
