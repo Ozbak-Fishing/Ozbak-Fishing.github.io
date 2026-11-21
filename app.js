@@ -61,7 +61,8 @@ const T = {
     not_admin: 'This account is not an admin account for this app.',
     sync_status: 'Sync status', synchronized: 'Synchronized', pending_sync: 'Pending', sync_offline: 'Offline',
     data_control: 'Data control (sync)', sync_blocked: 'Sync blocked', sync_wifi: 'Wi-Fi only', sync_both: 'Wi-Fi + mobile data',
-    sync_now: 'Sync now', sync_done_msg: 'Sync done — the site copy is now up to date.',
+    sync_now: 'Sync now', sync_error: 'Sync problem: the last change could not be sent. It stays saved on this device and will be retried.',
+    sync_done_msg: 'Sync done — the site copy is now up to date.',
     sync_queued_msg: 'Saved on this device — it will sync when sign-in, connection and the data control allow it.',
     add_title: 'Add a fish', edit_title: 'Edit a fish',
     f_gallery: 'Gallery', f_status: 'Add as', st_pending: 'Pending confirmation (no number yet)', st_caught: 'Confirmed (gets the next number)',
@@ -122,7 +123,8 @@ const T = {
     not_admin: "Ce compte n'est pas un compte admin pour cette app.",
     sync_status: 'État de la synchro', synchronized: 'Synchronisé', pending_sync: 'En attente', sync_offline: 'Hors ligne',
     data_control: 'Contrôle des données (synchro)', sync_blocked: 'Synchro bloquée', sync_wifi: 'Wi-Fi seulement', sync_both: 'Wi-Fi + données mobiles',
-    sync_now: 'Synchroniser', sync_done_msg: 'Synchro terminée — la copie du site est maintenant à jour.',
+    sync_now: 'Synchroniser', sync_error: "Problème de synchro : le dernier changement n'a pas pu être envoyé. Il reste enregistré sur cet appareil et sera réessayé.",
+    sync_done_msg: 'Synchro terminée — la copie du site est maintenant à jour.',
     sync_queued_msg: "Enregistré sur cet appareil — la synchro se fera quand la connexion, le compte admin et le contrôle des données le permettront.",
     add_title: 'Ajouter un poisson', edit_title: 'Modifier un poisson',
     f_gallery: 'Galerie', f_status: 'Ajouter comme', st_pending: 'En attente de confirmation (pas encore de numéro)', st_caught: 'Confirmé (reçoit le prochain numéro)',
@@ -354,6 +356,10 @@ function queueUpdate(fish, snap, photoDataUrl, shiftOps) {
   processOutbox(false);
 }
 async function executeOp(op) {
+  /* Invariant: a photo-bearing op is never degraded into a photo-less
+     write. uploadPhoto() must succeed BEFORE any species POST/PATCH runs;
+     if it throws, processOutbox leaves the op queued (photo intact) and
+     records a visible sync error instead of silently dropping the photo. */
   if (op.kind === 'insert') {
     if (!op.insertedDbId) {
       const f = Object.assign({}, op.fish);
@@ -393,12 +399,21 @@ async function processOutbox(force) {
   if (!force && !mayAutoSync()) return;
   syncing = true;
   let didWork = false;
+  let syncFailed = false;
   while (state.outbox.length) {
     const op = state.outbox[0];
     try { await executeOp(op); state.outbox.shift(); didWork = true; saveState(); }
-    catch (e) { break; } // leave the rest queued for the next opportunity
+    catch (e) {
+      /* No silent failures: the op stays queued (photo intact) and the
+         problem becomes visible in the Admin panel until a full drain. */
+      syncFailed = true;
+      state.syncError = { message: e && e.message ? String(e.message) : String(e || 'Unknown error'), at: Date.now() };
+      saveState();
+      break; // leave the rest queued for the next opportunity
+    }
   }
   syncing = false;
+  if (!syncFailed && !state.outbox.length && state.syncError) { state.syncError = null; saveState(); }
   if (didWork) { try { await refreshDataset(); } catch (e) {} saveState(); }
   if (route.name === 'admin') render();
 }
@@ -410,12 +425,14 @@ async function refreshDataset() {
 }
 
 /* ---------------- state ----------------
-   state = { fish, pending, outbox, syncMode, dataSource }
+   state = { fish, pending, outbox, syncMode, dataSource, syncError }
    - fish: last-good dataset (live Supabase when reachable, else the saved
      copy, else the bundled data.json seed) + locally added unsynced fish.
    - pending: S10 pending-confirmation catches — LOCAL-ONLY, never sent
      to Supabase until the owner confirms them.
-   - outbox: confirmed writes waiting for sync (persisted). */
+   - outbox: confirmed writes waiting for sync (persisted).
+   - syncError: {message, at} of the last failed sync/save, shown in the
+     Admin panel; cleared by the next fully successful outbox drain. */
 function seedFromData(data) {
   const fish = [];
   const push = (arr, gallery) => (arr || []).forEach((x, i) => fish.push({
@@ -437,19 +454,30 @@ function seedFromData(data) {
   return { fish };
 }
 function saveState() {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ fish: state.fish, pending: state.pending, outbox: state.outbox, syncMode: state.syncMode }));
-  } catch (e) { /* storage full (photos) — keep going in memory */ }
+  if (!state) return;
+  const payload = (fish) => JSON.stringify({ fish, pending: state.pending, outbox: state.outbox, syncMode: state.syncMode, syncError: state.syncError || null });
+  try { localStorage.setItem(LS_KEY, payload(state.fish)); return; } catch (e) { /* fall through to the trimmed retry */ }
+  /* Trimmed retry: pending catches and outbox ops (with their photos) are
+     essential and are kept whole; only the re-fetchable dataset cache is
+     reduced to the fish that exist nowhere else yet (unsynced local
+     catches). Synced fish come back from Supabase / the bundled seed. */
+  const unsynced = (state.fish || []).filter((f) => f && f.status === 'caught' && !f.dbId && String(f.id || '').indexOf('local-') === 0);
+  try { localStorage.setItem(LS_KEY, payload(unsynced)); return; } catch (e) {
+    /* Even the trimmed save failed: keep the warning visible in memory —
+       the on-device copy of pending/outbox work is at risk. (Not saved
+       via saveState() again: that is what just failed.) */
+    state.syncError = { message: 'On-device save failed: ' + (e && e.message ? String(e.message) : String(e || 'storage unavailable')), at: Date.now() };
+  }
 }
 async function initApp() {
   let stored = null;
   try { const raw = localStorage.getItem(LS_KEY); if (raw) stored = JSON.parse(raw); } catch (e) {}
   if (stored && Array.isArray(stored.fish)) {
-    state = { fish: stored.fish, pending: stored.pending || [], outbox: stored.outbox || [], syncMode: stored.syncMode || 'wifi', dataSource: 'cache' };
+    state = { fish: stored.fish, pending: stored.pending || [], outbox: stored.outbox || [], syncMode: stored.syncMode || 'wifi', dataSource: 'cache', syncError: stored.syncError || null };
   } else {
     let mode = 'wifi';
     try { const v1 = JSON.parse(localStorage.getItem('ozbakAppV1') || 'null'); if (v1 && v1.syncMode) mode = v1.syncMode; } catch (e) {}
-    state = { fish: [], pending: [], outbox: [], syncMode: mode, dataSource: 'bundled' };
+    state = { fish: [], pending: [], outbox: [], syncMode: mode, dataSource: 'bundled', syncError: null };
     try {
       const data = await (await fetch('data.json')).json();
       state.fish = seedFromData(data).fish;
@@ -733,6 +761,7 @@ function adminHTML() {
     '<button class="btn ghost" id="signOutBtn">' + esc(t('sign_out')) + '</button></div>' +
     '<div class="panel"><h3>' + esc(t('sync_status')) + '</h3>' +
     '<span class="syncdot' + (pendingCount ? ' pending' : '') + '">' + syncLabel + '</span>' +
+    (state.syncError ? '<div class="warn" style="margin-top:10px">' + esc(t('sync_error')) + '<br><span class="small">' + esc(state.syncError.message || '') + (state.syncError.at ? ' · ' + esc(new Date(state.syncError.at).toLocaleString()) : '') + '</span></div>' : '') +
     '<h3 style="margin-top:18px">' + esc(t('data_control')) + '</h3><div class="radio-row">' +
     radio('blocked', t('sync_blocked')) + radio('wifi', t('sync_wifi')) + radio('both', t('sync_both')) + '</div>' +
     '<button class="btn ghost" id="syncNow">' + esc(t('sync_now')) + '</button></div>' +
@@ -770,6 +799,29 @@ function adminMsg(html, ok) { const m = $('#adminMsg'); if (m) m.innerHTML = '<d
 
 /* crop state */
 let cropImg = null, cropOrig = null, cropZoom = 1, cropX = 0, cropY = 0, cropDrag = null;
+/* Photos stored by the app are always a lightened copy: max dimension
+   1600 px, JPEG ~0.85. The original stays untouched in the phone gallery.
+   Both selection paths (crop Apply and crop Skip) go through the same
+   helper, so a full-resolution original can never end up in formPhoto —
+   a multi-MB dataURL is what used to overflow the persisted state and
+   silently take the photo (and the queued write) down with it. */
+const PHOTO_MAX_DIM = 1600;
+const PHOTO_JPEG_QUALITY = 0.85;
+function setFormPhotoFromImage(source) {
+  const srcW = source ? (source.naturalWidth || source.width || 0) : 0;
+  const srcH = source ? (source.naturalHeight || source.height || 0) : 0;
+  if (!source || !srcW || !srcH) { formPhoto = null; showPhotoPreview(); return; }
+  const scale = Math.min(1, PHOTO_MAX_DIM / Math.max(srcW, srcH));
+  const w = Math.max(1, Math.round(srcW * scale));
+  const h = Math.max(1, Math.round(srcH * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) { formPhoto = null; showPhotoPreview(); return; }
+  ctx.drawImage(source, 0, 0, w, h);
+  formPhoto = canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY);
+  showPhotoPreview();
+}
 function drawCrop() {
   const cv = $('#cropCanvas'); if (!cv || !cropImg) return;
   const ctx = cv.getContext('2d'); const W = cv.width, H = cv.height;
@@ -798,8 +850,11 @@ function wireCrop() {
     cv.addEventListener('pointerup', () => { cropDrag = null; });
   }
   const z = $('#cropZoom'); if (z) z.addEventListener('input', () => { cropZoom = parseFloat(z.value); drawCrop(); });
-  const ap = $('#cropApply'); if (ap) ap.addEventListener('click', () => { formPhoto = $('#cropCanvas').toDataURL('image/jpeg', 0.85); showPhotoPreview(); });
-  const sk = $('#cropSkip'); if (sk) sk.addEventListener('click', () => { formPhoto = cropOrig; showPhotoPreview(); });
+  /* Apply: the crop canvas is 480x360, already under the cap — the helper
+     re-encodes it unchanged in size. Skip: the loaded original image is
+     downscaled by the same helper instead of being kept at full size. */
+  const ap = $('#cropApply'); if (ap) ap.addEventListener('click', () => { setFormPhotoFromImage($('#cropCanvas')); });
+  const sk = $('#cropSkip'); if (sk) sk.addEventListener('click', () => { setFormPhotoFromImage(cropImg); });
 }
 function showPhotoPreview() {
   const p = $('#photoPreview'); if (!p) return;
