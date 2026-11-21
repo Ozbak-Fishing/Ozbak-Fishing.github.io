@@ -1,8 +1,9 @@
 'use strict';
-/* Ozbak service worker v2: network-first for the app shell + data so updates
-   propagate on the next visit, with cache fallback for offline use.
-   Bump CACHE whenever the shell changes materially. */
-const CACHE = 'ozbak-v2';
+/* Ozbak service worker v3: network-first for the app shell + bundled data
+   so updates propagate on the next visit, with cache fallback for offline
+   use. (Live data itself comes from Supabase at runtime, not from this
+   cache.) Bump CACHE whenever the shell changes materially. */
+const CACHE = 'ozbak-v3';
 const SHELL = ['./', './index.html', './style.css', './app.js', './data.json', './ozbak-logo.png', './manifest.json'];
 
 self.addEventListener('install', (e) => {

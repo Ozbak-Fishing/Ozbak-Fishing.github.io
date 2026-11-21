@@ -1,10 +1,15 @@
 'use strict';
-/* Ozbak Lifelist — V1 local prototype.
-   All data lives in localStorage (seeded from data.json). No backend yet:
-   the PIN lock and the "sync" are local simulations, ready to be replaced
-   by Supabase Auth + sync later. */
+/* Ozbak Lifelist — Supabase-backed app.
+   Reads are LIVE from the owner's Supabase project (public anon key,
+   client-safe by design). Writes go through the signed-in admin user's
+   JWT (Supabase Auth + user_roles RLS). Offline: last-good dataset is
+   cached in localStorage, pending-confirmation catches stay local-only,
+   and confirmed writes queue in a persisted outbox until sync can run. */
 
-const LS_KEY = 'ozbakAppV1';
+const SB_URL = 'https://dapfearinbupdsuglrcs.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRhcGZlYXJpbmJ1cGRzdWdscmNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2NDMyOTYsImV4cCI6MjA3MzIxOTI5Nn0.XNSEw0GX7BuC-rBDoY-ow-NJ-Ed_-8cEDnI3W8_nAh0';
+const LS_KEY = 'ozbakAppV2';
+const SESSION_KEY = 'ozbakSession';
 const LANG_KEY = 'ozbakLang';
 const VIEW_KEY = 'ozbakViewMode';
 
@@ -12,7 +17,7 @@ let lang = localStorage.getItem(LANG_KEY) || 'en';
 let viewMode = localStorage.getItem(VIEW_KEY) || 'grid';
 let route = { name: 'home' };
 let state = null;
-let adminUnlocked = sessionStorage.getItem('ozbakAdmin') === '1';
+let adminUnlocked = false; // true only when signed in AND verified as admin in Supabase (user_roles)
 let formPhoto = null;        // dataURL chosen/cropped in the admin form
 let transferFromId = null;   // missing_qc fish id being transferred
 let editId = null;           // fish id being edited
@@ -22,7 +27,7 @@ const T = {
   en: {
     nav_home: 'Home', nav_main: 'Main species', nav_sub: 'Subspecies', nav_hyb: 'Hybrids',
     nav_missing: 'Missing QC', nav_admin: 'Admin',
-    footer_text: 'Ozbak — Lifelist · Catch & release · V1 prototype (local data)',
+    footer_text: 'Ozbak — Lifelist · Catch & release',
     hero_title: 'Ozbak — Lifelist',
     hero_intro: "I'm Ozbak, a lifelister from Montréal (Anjou), Québec. I fish from shore, almost always catch & release, and I keep track of every species I catch.",
     what_title: 'What is a lifelist?',
@@ -48,16 +53,15 @@ const T = {
     gal_missing_d: 'Fish of Québec I have not caught yet.',
     transfer: 'Transfer (I caught it!)',
     admin_title: 'Admin',
-    pin_set_title: 'Set your admin PIN (V1 local simulation)',
-    pin_set_text: 'First visit: choose a PIN code for this device. It is stored only in this browser (localStorage) — this is a local demo lock, NOT real security. It will be replaced by a real Supabase login later.',
-    pin_enter_title: 'Admin locked',
-    pin_enter_text: 'Enter your PIN code to open the admin panel. The data control lives inside the admin panel only, so nobody you show the app to can turn it on.',
-    pin: 'PIN code', pin_confirm: 'Confirm PIN code', create_pin: 'Create PIN', unlock: 'Unlock', lock: 'Lock admin',
-    wrong_pin: 'Wrong PIN code.', pin_mismatch: 'The two PIN codes do not match.', pin_short: 'PIN must be at least 4 digits.',
-    sync_status: 'Sync status', synchronized: 'Synchronized', pending_sync: 'Pending',
+    login_title: 'Admin login',
+    login_text: 'Sign in with the app owner’s Supabase account. Only an admin account can add or edit fish — visitors only ever read the public site. The data control lives inside the admin panel only, so nobody you show the app to can turn it on.',
+    email: 'Email', password: 'Password', sign_in: 'Sign in', sign_out: 'Sign out', signed_in_as: 'Signed in as',
+    login_failed: 'Sign-in failed — check the email and password.',
+    not_admin: 'This account is not an admin account for this app.',
+    sync_status: 'Sync status', synchronized: 'Synchronized', pending_sync: 'Pending', sync_offline: 'Offline',
     data_control: 'Data control (sync)', sync_blocked: 'Sync blocked', sync_wifi: 'Wi-Fi only', sync_both: 'Wi-Fi + mobile data',
-    simulate_sync: 'Simulate sync now', sync_blocked_msg: 'Sync is blocked in the data control — nothing was sent (simulation).',
-    sync_done_msg: 'Simulated sync done: the site copy would now be up to date.',
+    sync_now: 'Sync now', sync_done_msg: 'Sync done — the site copy is now up to date.',
+    sync_queued_msg: 'Saved on this device — it will sync when sign-in, connection and the data control allow it.',
     add_title: 'Add a fish', edit_title: 'Edit a fish',
     f_gallery: 'Gallery', f_status: 'Add as', st_pending: 'Pending confirmation (no number yet)', st_caught: 'Confirmed (gets the next number)',
     f_en: 'English name', f_fr: 'French name', f_sci: 'Scientific name', f_family: 'Family',
@@ -74,8 +78,8 @@ const T = {
     saved_pending: 'Saved as pending — no number, not published, until confirmed.',
     saved_caught: 'Saved and published with #', transferred: 'Transferred! It left Missing QC.',
     updated: 'Fish updated.',
-    reset_title: 'Demo data', reset_text: 'Reload the original imported data (51 Main, 2 Subspecies, 0 Hybrids, 78 Missing QC) and erase all local changes and the PIN.',
-    reset_btn: 'Reset demo data', reset_confirm: 'Erase all local changes and reload the original data?',
+    data_source: 'Data source', source_live: 'Supabase — live data', source_cache: 'Saved copy on this device (the live data could not be reached)',
+    source_bundled: 'Bundled copy in the app (the live data could not be reached)', refresh_btn: 'Reload data from Supabase',
     missing_admin_note: 'Admin is unlocked: you can transfer a missing species you caught from the Missing QC gallery.',
     home_admin_note: 'Admin: add a fish to my lifelist',
     required: 'English, French and scientific names are required.'
@@ -83,7 +87,7 @@ const T = {
   fr: {
     nav_home: 'Accueil', nav_main: 'Espèces principales', nav_sub: 'Sous-espèces', nav_hyb: 'Hybrides',
     nav_missing: 'Manquants QC', nav_admin: 'Admin',
-    footer_text: 'Ozbak — Lifelist · Remise à l’eau · Prototype V1 (données locales)',
+    footer_text: 'Ozbak — Lifelist · Remise à l’eau',
     hero_title: 'Ozbak — Lifelist',
     hero_intro: "Je suis Ozbak, un lifelister de Montréal (Anjou), au Québec. Je pêche du bord, presque toujours en remise à l'eau, et je note chaque espèce que je capture.",
     what_title: "C'est quoi, une lifelist ?",
@@ -109,16 +113,15 @@ const T = {
     gal_missing_d: 'Les poissons du Québec que je n’ai pas encore capturés.',
     transfer: 'Transférer (je l’ai pris !)',
     admin_title: 'Admin',
-    pin_set_title: 'Crée ton code PIN admin (simulation locale V1)',
-    pin_set_text: "Première visite : choisis un code PIN pour cet appareil. Il est gardé seulement dans ce navigateur (localStorage) — c'est un verrou de démonstration local, PAS une vraie sécurité. Il sera remplacé par une vraie connexion Supabase plus tard.",
-    pin_enter_title: 'Admin verrouillé',
-    pin_enter_text: "Entre ton code PIN pour ouvrir le panneau admin. Le contrôle des données se trouve seulement dans le panneau admin, pour que personne à qui tu montres l'app puisse l'activer.",
-    pin: 'Code PIN', pin_confirm: 'Confirmer le code PIN', create_pin: 'Créer le PIN', unlock: 'Déverrouiller', lock: "Verrouiller l'admin",
-    wrong_pin: 'Mauvais code PIN.', pin_mismatch: 'Les deux codes PIN ne correspondent pas.', pin_short: 'Le PIN doit avoir au moins 4 chiffres.',
-    sync_status: 'État de la synchro', synchronized: 'Synchronisé', pending_sync: 'En attente',
+    login_title: 'Connexion admin',
+    login_text: "Connecte-toi avec le compte Supabase du propriétaire de l'app. Seul un compte admin peut ajouter ou modifier des poissons — les visiteurs ne font que consulter le site public. Le contrôle des données se trouve seulement dans le panneau admin, pour que personne à qui tu montres l'app puisse l'activer.",
+    email: 'Courriel', password: 'Mot de passe', sign_in: 'Se connecter', sign_out: 'Se déconnecter', signed_in_as: 'Connecté :',
+    login_failed: 'Échec de connexion — vérifie le courriel et le mot de passe.',
+    not_admin: "Ce compte n'est pas un compte admin pour cette app.",
+    sync_status: 'État de la synchro', synchronized: 'Synchronisé', pending_sync: 'En attente', sync_offline: 'Hors ligne',
     data_control: 'Contrôle des données (synchro)', sync_blocked: 'Synchro bloquée', sync_wifi: 'Wi-Fi seulement', sync_both: 'Wi-Fi + données mobiles',
-    simulate_sync: 'Simuler la synchro', sync_blocked_msg: 'La synchro est bloquée dans le contrôle des données — rien n’a été envoyé (simulation).',
-    sync_done_msg: 'Synchro simulée terminée : la copie du site serait maintenant à jour.',
+    sync_now: 'Synchroniser', sync_done_msg: 'Synchro terminée — la copie du site est maintenant à jour.',
+    sync_queued_msg: "Enregistré sur cet appareil — la synchro se fera quand la connexion, le compte admin et le contrôle des données le permettront.",
     add_title: 'Ajouter un poisson', edit_title: 'Modifier un poisson',
     f_gallery: 'Galerie', f_status: 'Ajouter comme', st_pending: 'En attente de confirmation (pas encore de numéro)', st_caught: 'Confirmé (reçoit le prochain numéro)',
     f_en: 'Nom anglais', f_fr: 'Nom français', f_sci: 'Nom scientifique', f_family: 'Famille',
@@ -135,8 +138,8 @@ const T = {
     saved_pending: "Enregistré en attente — pas de numéro, non publié, jusqu'à confirmation.",
     saved_caught: 'Enregistré et publié avec le #', transferred: 'Transféré ! Il a quitté les Manquants QC.',
     updated: 'Poisson mis à jour.',
-    reset_title: 'Données de démo', reset_text: "Recharger les données d'origine importées (51 principales, 2 sous-espèces, 0 hybrides, 78 manquants QC) et effacer tous les changements locaux et le PIN.",
-    reset_btn: 'Réinitialiser les données de démo', reset_confirm: "Effacer tous les changements locaux et recharger les données d'origine ?",
+    data_source: 'Source des données', source_live: 'Supabase — données en direct', source_cache: "Copie enregistrée sur cet appareil (données en direct injoignables)",
+    source_bundled: "Copie intégrée à l'app (données en direct injoignables)", refresh_btn: 'Recharger les données depuis Supabase',
     missing_admin_note: 'Admin déverrouillé : tu peux transférer une espèce manquante que tu as prise depuis la galerie Manquants QC.',
     home_admin_note: 'Admin : ajouter un poisson à ma lifelist',
     required: 'Les noms anglais, français et scientifique sont obligatoires.'
@@ -149,42 +152,314 @@ const $ = (sel, el) => (el || document).querySelector(sel);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const slug = (s) => norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-function pinHash(pin) { let h = 5381; for (let i = 0; i < pin.length; i++) h = ((h << 5) + h + pin.charCodeAt(i)) >>> 0; return 'h' + h.toString(16); }
+const isDataUrl = (s) => typeof s === 'string' && s.indexOf('data:') === 0;
+function dataURLtoBlob(dataUrl) {
+  const parts = String(dataUrl).split(',');
+  const mime = ((parts[0] || '').match(/:(.*?);/) || [])[1] || 'image/jpeg';
+  const bin = atob(parts[1] || '');
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+/* Legacy merged location, still read by the Lovable site: compose it from
+   the separated country/place on every write, never drop it. */
+function composeLocation(country, place) {
+  const c = country === 'États-Unis' ? 'Usa' : (country || '');
+  const p = place === 'Québec' ? 'Quebec' : (place || '');
+  if (!c && !p) return '';
+  return p ? c + ' (' + p + ')' : c;
+}
+/* Inverse of composeLocation — only a fallback for rows missing country/place. */
+function parseLocation(loc) {
+  const m = /^\s*(.*?)\s*\((.*)\)\s*$/.exec(loc || '');
+  if (!m) return { country: '', place: '' };
+  return { country: m[1] === 'Usa' ? 'États-Unis' : m[1], place: m[2] === 'Quebec' ? 'Québec' : m[2] };
+}
 const primaryName = (f) => (lang === 'fr' ? (f.name_fr || f.name_en) : (f.name_en || f.name_fr)) || f.scientific || '';
 const secondaryName = (f) => (lang === 'fr' ? (f.name_en || '') : (f.name_fr || ''));
 const placeLabel = (f) => [f.country, f.place].filter(Boolean).join(' · ') || (f.country || f.place || '');
 const nextNum = (gallery) => state.fish.filter((f) => f.gallery === gallery && f.status === 'caught').reduce((m, f) => Math.max(m, f.num || 0), 0) + 1;
 
-/* ---------------- state ---------------- */
+/* ---------------- Supabase client (REST + Auth, no SDK) ---------------- */
+let session = null;        // {access_token, refresh_token, expires_at, user_id, email}
+let adminVerified = false;
+let loginError = '';       // i18n key of the last login problem ('' = none)
+let syncing = false;
+try { const rawS = localStorage.getItem(SESSION_KEY); if (rawS) session = JSON.parse(rawS); } catch (e) {}
+function saveSession() {
+  try { if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session)); else localStorage.removeItem(SESSION_KEY); } catch (e) {}
+}
+function sbHeaders(token) {
+  return { apikey: SB_ANON, Authorization: 'Bearer ' + (token || SB_ANON), 'Content-Type': 'application/json' };
+}
+function fetchT(url, opts, ms) {
+  opts = opts || {};
+  let ctrl = null;
+  if (typeof AbortController !== 'undefined') { ctrl = new AbortController(); opts.signal = ctrl.signal; }
+  const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, ms || 10000);
+  return fetch(url, opts).finally(() => clearTimeout(timer));
+}
+async function sbGet(path, token) {
+  const r = await fetchT(SB_URL + path, { headers: sbHeaders(token) }, 9000);
+  if (!r.ok) throw new Error('Supabase GET ' + r.status);
+  return r.json();
+}
+
+/* ----- row mapping: Supabase -> app fish model ----- */
+function mapSpeciesRow(r) {
+  const gallery = (r.category === 'hybrid' || r.category === 'hybrids') ? 'hybrids' : (r.category || 'main');
+  const water = r.water_type ? (r.water_type.charAt(0).toUpperCase() + r.water_type.slice(1)) : '';
+  let country = r.country || '', place = r.place || '';
+  if (!country && !place && r.location) { const p = parseLocation(r.location); country = p.country; place = p.place; }
+  return {
+    id: 'db-' + r.id, dbId: r.id, num: r.capture_number != null ? r.capture_number : null, quest: null,
+    gallery, category: gallery === 'subspecies' ? 'Variant' : water, water: water || 'Freshwater',
+    name_en: r.english_name || '', name_fr: r.french_name || '', scientific: r.scientific_name || '',
+    family: r.family || '', date: r.capture_date || '', country, place,
+    notes: r.notes || '', photo: r.image_url || null, inaturalist: r.inaturalist_url || '',
+    status: 'caught', suggested_place: '', when: ''
+  };
+}
+function mapMissingRow(r) {
+  const m = /^\[([^\]]+)\]\s*/.exec(r.french_name || '');
+  return {
+    id: 'dbm-' + r.id, dbId: r.id, num: null, quest: m ? m[1] : '', gallery: 'missing', category: '', water: '',
+    name_en: r.english_name || '', name_fr: m ? String(r.french_name).slice(m[0].length) : (r.french_name || ''),
+    scientific: r.scientific_name || '', family: r.family || '', date: '', country: '', place: '',
+    notes: '', photo: r.image_url || null, inaturalist: '', status: 'missing', priority: !!r.is_priority,
+    suggested_place: '', when: ''
+  };
+}
+async function fetchLiveDataset() {
+  const species = await sbGet('/rest/v1/species?select=*');
+  const missing = await sbGet('/rest/v1/missing_species?select=*');
+  return { fish: species.map(mapSpeciesRow).concat(missing.map(mapMissingRow)) };
+}
+
+/* ----- auth (Supabase Auth, email + password) ----- */
+async function sbSignIn(email, password) {
+  loginError = '';
+  try {
+    const r = await fetchT(SB_URL + '/auth/v1/token?grant_type=password',
+      { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ email, password }) }, 12000);
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data || !data.access_token) { loginError = 'login_failed'; return false; }
+    session = {
+      access_token: data.access_token, refresh_token: data.refresh_token,
+      expires_at: Date.now() + (data.expires_in || 3600) * 1000,
+      user_id: data.user && data.user.id, email: data.user && data.user.email
+    };
+    saveSession();
+    if (!(await sbCheckAdmin())) { sbSignOut(); loginError = 'not_admin'; return false; }
+    return true;
+  } catch (e) { loginError = 'login_failed'; return false; }
+}
+async function sbCheckAdmin() {
+  adminVerified = false;
+  if (session) {
+    try {
+      const rows = await sbGet('/rest/v1/user_roles?select=role&user_id=eq.' + encodeURIComponent(session.user_id), session.access_token);
+      adminVerified = Array.isArray(rows) && rows.some((x) => x.role === 'admin');
+    } catch (e) { adminVerified = false; }
+  }
+  adminUnlocked = adminVerified;
+  return adminVerified;
+}
+async function sbRefreshToken() {
+  if (!session || !session.refresh_token) return false;
+  try {
+    const r = await fetchT(SB_URL + '/auth/v1/token?grant_type=refresh_token',
+      { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ refresh_token: session.refresh_token }) }, 12000);
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data || !data.access_token) return false;
+    session.access_token = data.access_token;
+    if (data.refresh_token) session.refresh_token = data.refresh_token;
+    session.expires_at = Date.now() + (data.expires_in || 3600) * 1000;
+    saveSession();
+    return true;
+  } catch (e) { return false; }
+}
+async function sbEnsureToken() {
+  if (!session) return false;
+  if (session.expires_at && session.expires_at - Date.now() > 60000) return true;
+  if (await sbRefreshToken()) return true;
+  sbSignOut();
+  return false;
+}
+function sbSignOut() { session = null; adminVerified = false; adminUnlocked = false; saveSession(); }
+async function restoreSession() {
+  if (!session) return;
+  const was = adminUnlocked;
+  if (await sbEnsureToken()) await sbCheckAdmin();
+  if (adminUnlocked !== was) render();
+  if (adminUnlocked) processOutbox(false);
+}
+
+/* ----- writes (admin JWT) ----- */
+function speciesPayload(f) {
+  const water = String(f.water || (f.category === 'Variant' ? 'Freshwater' : f.category) || 'Freshwater').toLowerCase();
+  return {
+    scientific_name: f.scientific, english_name: f.name_en, french_name: f.name_fr,
+    family: f.family || null, water_type: water,
+    category: f.gallery === 'hybrids' ? 'hybrid' : (f.gallery || 'main'),
+    capture_number: f.num != null ? f.num : null,
+    capture_date: f.date || null,
+    location: composeLocation(f.country, f.place),
+    country: f.country || null, place: f.place || null,
+    notes: f.notes || null,
+    image_url: f.photo && !isDataUrl(f.photo) ? f.photo : null,
+    inaturalist_url: f.inaturalist || null
+  };
+}
+async function sbWrite(method, path, body, prefer) {
+  if (!(await sbEnsureToken())) throw new Error('not signed in');
+  const headers = sbHeaders(session.access_token);
+  if (prefer) headers.Prefer = prefer;
+  const r = await fetchT(SB_URL + path, { method, headers, body: body ? JSON.stringify(body) : undefined }, 20000);
+  if (!r.ok) throw new Error('Supabase write ' + r.status);
+  const txt = await r.text();
+  return txt ? JSON.parse(txt) : null;
+}
+async function uploadPhoto(dataUrl) {
+  if (!(await sbEnsureToken())) throw new Error('not signed in');
+  const blob = dataURLtoBlob(dataUrl);
+  const name = Date.now() + '-' + Math.random().toString(36).slice(2, 10) + '.jpg';
+  const r = await fetchT(SB_URL + '/storage/v1/object/species-images/' + name,
+    { method: 'POST', headers: { apikey: SB_ANON, Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'image/jpeg' }, body: blob }, 30000);
+  if (!r.ok) throw new Error('photo upload ' + r.status);
+  return SB_URL + '/storage/v1/object/public/species-images/' + name;
+}
+
+/* ----- offline outbox + sync runner ----- */
+function queueOp(op) { state.outbox.push(op); saveState(); processOutbox(false); }
+function queueInsert(localFish, opts) {
+  opts = opts || {};
+  const snap = Object.assign({}, localFish);
+  const photoDataUrl = isDataUrl(snap.photo) ? snap.photo : null;
+  if (photoDataUrl) snap.photo = null;
+  queueOp({ kind: 'insert', localId: localFish.id, fish: snap, photoDataUrl, transferDbId: opts.transferDbId || null, insertedDbId: null });
+}
+function queueUpdate(fish, snap, photoDataUrl, shiftOps) {
+  (shiftOps || []).forEach((op) => state.outbox.push(op));
+  const queued = state.outbox.find((o) => o.kind === 'insert' && o.localId === fish.id);
+  if (queued) { // not in Supabase yet: fold the edit into its pending insert
+    Object.assign(queued.fish, snap);
+    if (photoDataUrl) { queued.photoDataUrl = photoDataUrl; queued.fish.photo = null; }
+  } else if (fish.dbId) {
+    state.outbox.push({ kind: 'update', dbId: fish.dbId, fish: snap, photoDataUrl: photoDataUrl || null });
+  }
+  saveState();
+  processOutbox(false);
+}
+async function executeOp(op) {
+  if (op.kind === 'insert') {
+    if (!op.insertedDbId) {
+      const f = Object.assign({}, op.fish);
+      if (op.photoDataUrl) f.photo = await uploadPhoto(op.photoDataUrl);
+      const rows = await sbWrite('POST', '/rest/v1/species', speciesPayload(f), 'return=representation');
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (row && row.id) {
+        op.insertedDbId = row.id;
+        const local = state.fish.find((x) => x.id === op.localId);
+        if (local) { local.dbId = row.id; local.id = 'db-' + row.id; if (row.image_url) local.photo = row.image_url; }
+        saveState(); // remember the insert succeeded before the transfer delete runs
+      }
+    }
+    if (op.transferDbId) await sbWrite('DELETE', '/rest/v1/missing_species?id=eq.' + op.transferDbId, null);
+  } else if (op.kind === 'update') {
+    const f = Object.assign({}, op.fish);
+    if (op.photoDataUrl) f.photo = await uploadPhoto(op.photoDataUrl);
+    await sbWrite('PATCH', '/rest/v1/species?id=eq.' + op.dbId, speciesPayload(f));
+  } else if (op.kind === 'patchNum') {
+    await sbWrite('PATCH', '/rest/v1/species?id=eq.' + op.dbId, { capture_number: op.num });
+  }
+}
+function mayAutoSync() {
+  if (!session || !adminVerified) return false;
+  if (typeof navigator !== 'undefined' && navigator && navigator.onLine === false) return false;
+  if (state.syncMode === 'blocked') return false;
+  if (state.syncMode === 'wifi') {
+    const c = (typeof navigator !== 'undefined' && navigator) ? navigator.connection : null;
+    if (c && c.type === 'cellular') return false; // known cellular: wait for Wi-Fi
+  }
+  return true; // 'both' (Wi-Fi + mobile), or Wi-Fi mode with an unknown connection (desktop/Firefox)
+}
+async function processOutbox(force) {
+  if (syncing || !state || !state.outbox || !state.outbox.length) return;
+  if (!session || !adminVerified) return;
+  if (typeof navigator !== 'undefined' && navigator && navigator.onLine === false) return;
+  if (!force && !mayAutoSync()) return;
+  syncing = true;
+  let didWork = false;
+  while (state.outbox.length) {
+    const op = state.outbox[0];
+    try { await executeOp(op); state.outbox.shift(); didWork = true; saveState(); }
+    catch (e) { break; } // leave the rest queued for the next opportunity
+  }
+  syncing = false;
+  if (didWork) { try { await refreshDataset(); } catch (e) {} saveState(); }
+  if (route.name === 'admin') render();
+}
+async function refreshDataset() {
+  const live = await fetchLiveDataset();
+  const unsynced = state.fish.filter((f) => f.status === 'caught' && !f.dbId && String(f.id).indexOf('local-') === 0);
+  state.fish = live.fish.concat(unsynced);
+  state.dataSource = 'live';
+}
+
+/* ---------------- state ----------------
+   state = { fish, pending, outbox, syncMode, dataSource }
+   - fish: last-good dataset (live Supabase when reachable, else the saved
+     copy, else the bundled data.json seed) + locally added unsynced fish.
+   - pending: S10 pending-confirmation catches — LOCAL-ONLY, never sent
+     to Supabase until the owner confirms them.
+   - outbox: confirmed writes waiting for sync (persisted). */
 function seedFromData(data) {
   const fish = [];
   const push = (arr, gallery) => (arr || []).forEach((x, i) => fish.push({
-    id: gallery + '-' + i + '-' + slug(x.scientific), num: x.num ? parseInt(x.num, 10) : null,
-    quest: null, gallery, category: x.category || '', name_en: x.name_en || '', name_fr: x.name_fr || '',
+    id: gallery + '-' + i + '-' + slug(x.scientific), dbId: null, num: x.num ? parseInt(x.num, 10) : null,
+    quest: null, gallery, category: x.category || '', water: x.category && x.category !== 'Variant' ? x.category : 'Freshwater',
+    name_en: x.name_en || '', name_fr: x.name_fr || '',
     scientific: x.scientific || '', family: x.family || '', date: x.date || '', country: x.country || '',
     place: x.place || '', notes: x.notes || '', photo: x.photo || null, inaturalist: x.inaturalist || '',
     status: 'caught', suggested_place: '', when: ''
   }));
   push(data.main, 'main'); push(data.subspecies, 'subspecies'); push(data.hybrids, 'hybrids');
   (data.missing_qc || []).forEach((x, i) => fish.push({
-    id: 'missing-' + i + '-' + slug(x.scientific), num: null, quest: x.quest_num || '',
-    gallery: 'missing', category: '', name_en: x.name_en || '', name_fr: x.name_fr || '',
+    id: 'missing-' + i + '-' + slug(x.scientific), dbId: null, num: null, quest: x.quest_num || '',
+    gallery: 'missing', category: '', water: '', name_en: x.name_en || '', name_fr: x.name_fr || '',
     scientific: x.scientific || '', family: x.family || '', date: '', country: '', place: '',
     notes: x.notes || '', photo: x.photo || null, inaturalist: '', status: 'missing', priority: !!x.priority,
     suggested_place: x.suggested_place || '', when: x.when || ''
   }));
-  return { fish, pending: [], changes: 0, syncMode: 'wifi', pinHash: null, seedVersion: data.version || '' };
+  return { fish };
 }
-function saveState() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* storage full (photos) — V1 keeps going in memory */ } }
-function loadState() {
+function saveState() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ fish: state.fish, pending: state.pending, outbox: state.outbox, syncMode: state.syncMode }));
+  } catch (e) { /* storage full (photos) — keep going in memory */ }
+}
+async function initApp() {
   let stored = null;
   try { const raw = localStorage.getItem(LS_KEY); if (raw) stored = JSON.parse(raw); } catch (e) {}
-  return fetch('data.json').then((r) => r.json()).then((data) => {
-    if (stored && stored.seedVersion === (data.version || '')) { state = stored; return; }
-    const fresh = seedFromData(data);
-    if (stored) { fresh.pinHash = stored.pinHash || null; fresh.syncMode = stored.syncMode || 'wifi'; }
-    state = fresh; saveState();
-  }).catch(() => { if (stored) state = stored; });
+  if (stored && Array.isArray(stored.fish)) {
+    state = { fish: stored.fish, pending: stored.pending || [], outbox: stored.outbox || [], syncMode: stored.syncMode || 'wifi', dataSource: 'cache' };
+  } else {
+    let mode = 'wifi';
+    try { const v1 = JSON.parse(localStorage.getItem('ozbakAppV1') || 'null'); if (v1 && v1.syncMode) mode = v1.syncMode; } catch (e) {}
+    state = { fish: [], pending: [], outbox: [], syncMode: mode, dataSource: 'bundled' };
+    try {
+      const data = await (await fetch('data.json')).json();
+      state.fish = seedFromData(data).fish;
+    } catch (e) { /* no bundled data reachable: galleries stay empty until live works */ }
+  }
+  saveState();
+  try { await refreshDataset(); saveState(); } catch (e) { /* offline: keep cache/bundled */ }
+  render();
+  const m = location.hash.match(/fish=([^&]+)/);
+  if (m) openPopup(decodeURIComponent(m[1]));
+  restoreSession();
+  if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('online', () => processOutbox(false));
 }
 const caught = (gallery) => state.fish.filter((f) => f.gallery === gallery && f.status === 'caught');
 const missingAll = () => state.fish.filter((f) => f.gallery === 'missing' && f.status === 'missing');
@@ -400,20 +675,18 @@ function shareFish(f) {
 
 /* ----- admin ----- */
 function adminHTML() {
-  if (!state.pinHash) {
-    return '<h1 style="color:var(--blue)">' + esc(t('admin_title')) + '</h1><div class="panel"><h2>' + esc(t('pin_set_title')) + '</h2>' +
-      '<p>' + esc(t('pin_set_text')) + '</p><div id="adminMsg"></div>' +
-      '<label>' + esc(t('pin')) + '</label><input type="password" id="pin1" inputmode="numeric" autocomplete="new-password">' +
-      '<label>' + esc(t('pin_confirm')) + '</label><input type="password" id="pin2" inputmode="numeric" autocomplete="new-password">' +
-      '<button class="btn" id="pinCreate">' + esc(t('create_pin')) + '</button></div>';
-  }
   if (!adminUnlocked) {
-    return '<h1 style="color:var(--blue)">' + esc(t('admin_title')) + '</h1><div class="panel"><h2>' + esc(t('pin_enter_title')) + '</h2>' +
-      '<p>' + esc(t('pin_enter_text')) + '</p><div id="adminMsg"></div>' +
-      '<label>' + esc(t('pin')) + '</label><input type="password" id="pinIn" inputmode="numeric" autocomplete="current-password">' +
-      '<button class="btn" id="pinUnlock">' + esc(t('unlock')) + '</button></div>';
+    return '<h1 style="color:var(--blue)">' + esc(t('admin_title')) + '</h1><div class="panel"><h2>' + esc(t('login_title')) + '</h2>' +
+      '<p>' + esc(t('login_text')) + '</p><div id="adminMsg"></div>' +
+      (loginError ? '<div class="warn">' + esc(t(loginError)) + '</div>' : '') +
+      '<form id="loginForm"><label>' + esc(t('email')) + '</label><input type="email" id="loginEmail" autocomplete="username" required>' +
+      '<label>' + esc(t('password')) + '</label><input type="password" id="loginPass" autocomplete="current-password" required>' +
+      '<button class="btn" type="submit" id="loginBtn">' + esc(t('sign_in')) + '</button></form></div>';
   }
-  const syncPending = state.changes > 0;
+  const pendingCount = state.outbox.length;
+  const isOffline = typeof navigator !== 'undefined' && navigator && navigator.onLine === false;
+  const syncLabel = pendingCount ? esc(t('pending_sync')) + ': ' + pendingCount
+    : (isOffline ? esc(t('sync_offline')) : esc(t('synchronized')));
   const radio = (val, label) => '<label><input type="radio" name="syncmode" value="' + val + '"' + (state.syncMode === val ? ' checked' : '') + '> ' + esc(label) + '</label>';
   const editOptions = state.fish.filter((f) => f.status === 'caught')
     .sort((a, b) => a.gallery.localeCompare(b.gallery) || (a.num || 0) - (b.num || 0))
@@ -424,12 +697,13 @@ function adminHTML() {
       '<button class="btn small danger" data-delete-pending="' + f.id + '">' + esc(t('delete_btn')) + '</button></span></div>').join('')
     : '<p class="small">' + esc(t('pending_empty')) + '</p>';
   return '<h1 style="color:var(--blue)">' + esc(t('admin_title')) + '</h1><div id="adminMsg"></div>' +
+    '<div class="panel"><h3>' + esc(t('signed_in_as')) + '</h3><p>' + esc(session ? session.email || '' : '') + '</p>' +
+    '<button class="btn ghost" id="signOutBtn">' + esc(t('sign_out')) + '</button></div>' +
     '<div class="panel"><h3>' + esc(t('sync_status')) + '</h3>' +
-    '<span class="syncdot' + (syncPending ? ' pending' : '') + '">' + (syncPending ? esc(t('pending_sync')) + ': ' + state.changes : esc(t('synchronized'))) + '</span>' +
+    '<span class="syncdot' + (pendingCount ? ' pending' : '') + '">' + syncLabel + '</span>' +
     '<h3 style="margin-top:18px">' + esc(t('data_control')) + '</h3><div class="radio-row">' +
     radio('blocked', t('sync_blocked')) + radio('wifi', t('sync_wifi')) + radio('both', t('sync_both')) + '</div>' +
-    '<button class="btn ghost" id="syncNow">' + esc(t('simulate_sync')) + '</button> ' +
-    '<button class="btn ghost" id="lockBtn">' + esc(t('lock')) + '</button></div>' +
+    '<button class="btn ghost" id="syncNow">' + esc(t('sync_now')) + '</button></div>' +
     '<div class="panel"><h3>' + esc(t('pending_title')) + ' (' + state.pending.length + ')</h3>' + pendingList + '</div>' +
     '<div class="panel"><h3 id="formTitle">' + esc(t('add_title')) + '</h3>' +
     '<label>' + esc(t('edit_existing')) + '</label><select id="editSelect"><option value="">' + esc(t('choose_fish')) + '</option>' + editOptions + '</select>' +
@@ -457,8 +731,8 @@ function adminHTML() {
     '<div id="photoPreview" style="margin-top:10px"></div>' +
     '<button class="btn" type="submit" id="saveBtn">' + esc(t('save')) + '</button> ' +
     '<button class="btn ghost" type="button" id="cancelEdit" hidden>' + esc(t('cancel_edit')) + '</button></form></div>' +
-    '<div class="panel"><h3>' + esc(t('reset_title')) + '</h3><p>' + esc(t('reset_text')) + '</p>' +
-    '<button class="btn danger" id="resetBtn">' + esc(t('reset_btn')) + '</button></div>';
+    '<div class="panel"><h3>' + esc(t('data_source')) + '</h3><p>' + esc(t(state.dataSource === 'live' ? 'source_live' : state.dataSource === 'bundled' ? 'source_bundled' : 'source_cache')) + '</p>' +
+    '<button class="btn ghost" id="refreshBtn">' + esc(t('refresh_btn')) + '</button></div>';
 }
 function adminMsg(html, ok) { const m = $('#adminMsg'); if (m) m.innerHTML = '<div class="' + (ok ? 'ok' : 'warn') + '">' + html + '</div>'; }
 
@@ -513,35 +787,32 @@ function startTransfer(id) {
   if (f && $('#fishForm')) { fillForm(f); $('#af_gallery').value = 'main'; $('#af_status').value = 'caught'; $('#formTitle').textContent = t('transfer') + ' — ' + primaryName(f); }
 }
 function wireAdmin() {
-  const create = $('#pinCreate');
-  if (create) {
-    create.addEventListener('click', () => {
-      const p1 = $('#pin1').value.trim(), p2 = $('#pin2').value.trim();
-      if (p1.length < 4) return adminMsg(esc(t('pin_short')));
-      if (p1 !== p2) return adminMsg(esc(t('pin_mismatch')));
-      state.pinHash = pinHash(p1); adminUnlocked = true; sessionStorage.setItem('ozbakAdmin', '1'); saveState(); render();
+  const loginForm = $('#loginForm');
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('#loginBtn'); if (btn) btn.disabled = true;
+      const ok = await sbSignIn($('#loginEmail').value.trim(), $('#loginPass').value);
+      if (ok) loginError = '';
+      render();
+      if (ok) processOutbox(false);
     });
     return;
   }
-  const unlockBtn = $('#pinUnlock');
-  if (unlockBtn) {
-    unlockBtn.addEventListener('click', () => {
-      if (pinHash($('#pinIn').value.trim()) === state.pinHash) { adminUnlocked = true; sessionStorage.setItem('ozbakAdmin', '1'); render(); }
-      else adminMsg(esc(t('wrong_pin')));
-    });
-    return;
-  }
-  document.querySelectorAll('input[name=syncmode]').forEach((r) => r.addEventListener('change', () => { state.syncMode = r.value; saveState(); }));
-  $('#syncNow').addEventListener('click', () => {
-    if (state.syncMode === 'blocked') { adminMsg(esc(t('sync_blocked_msg'))); return; }
-    state.changes = 0; saveState(); render(); adminMsg(esc(t('sync_done_msg')), true);
+  document.querySelectorAll('input[name=syncmode]').forEach((r) => r.addEventListener('change', () => { state.syncMode = r.value; saveState(); processOutbox(false); }));
+  $('#syncNow').addEventListener('click', async () => {
+    await processOutbox(true); // deliberate manual action: forces an attempt even when sync is "blocked"
+    if (!state.outbox.length) adminMsg(esc(t('sync_done_msg')), true);
+    else adminMsg(esc(t('sync_queued_msg')));
   });
-  $('#lockBtn').addEventListener('click', () => { adminUnlocked = false; sessionStorage.removeItem('ozbakAdmin'); render(); });
-  $('#resetBtn').addEventListener('click', () => { if (confirm(t('reset_confirm'))) { localStorage.removeItem(LS_KEY); sessionStorage.removeItem('ozbakAdmin'); location.reload(); } });
+  $('#signOutBtn').addEventListener('click', () => { sbSignOut(); render(); });
+  $('#refreshBtn').addEventListener('click', async () => { try { await refreshDataset(); saveState(); } catch (e) {} render(); });
   document.querySelectorAll('[data-confirm-pending]').forEach((b) => b.addEventListener('click', () => {
     const i = state.pending.findIndex((x) => x.id === b.getAttribute('data-confirm-pending')); if (i < 0) return;
     const f = state.pending.splice(i, 1)[0];
-    f.status = 'caught'; f.num = nextNum(f.gallery); state.fish.push(f); state.changes++; saveState(); render();
+    f.status = 'caught'; f.num = nextNum(f.gallery); state.fish.push(f);
+    queueInsert(f, { transferDbId: f.transferDbId || null }); delete f.transferDbId;
+    saveState(); render();
     adminMsg(esc(t('saved_caught')) + f.num, true);
   }));
   document.querySelectorAll('[data-delete-pending]').forEach((b) => b.addEventListener('click', () => {
@@ -565,14 +836,20 @@ function wireAdmin() {
     /* duplicate warning (S2) */
     const dup = state.fish.concat(state.pending).find((x) => norm(x.scientific) === norm(sci) && x.id !== editId && x.status !== 'missing');
     if (dup && !confirm(t('dup_title') + ' — ' + t('dup_msg') + (dup.num ? '#' + dup.num + ' ' : '') + primaryName(dup) + ' (' + dup.scientific + '). ' + t('dup_ask'))) return;
+    const waterVal = $('#af_water').value;
     const base = {
       name_en: $('#af_en').value.trim(), name_fr: $('#af_fr').value.trim(), scientific: sci,
-      family: $('#af_family').value.trim(), category: $('#af_water').value, date: $('#af_date').value,
+      family: $('#af_family').value.trim(), category: waterVal, water: waterVal === 'Variant' ? 'Freshwater' : waterVal,
+      date: $('#af_date').value,
       country: $('#af_country').value.trim(), place: $('#af_place').value.trim(),
       inaturalist: $('#af_inat').value.trim(), notes: $('#af_notes').value.trim(), photo: formPhoto
     };
     if (editId) {
       const f = state.fish.find((x) => x.id === editId); if (!f) return;
+      if (waterVal === 'Variant' && f.water) base.water = f.water; // keep the real water type behind the Variant label
+      const oldNum = f.num;
+      const peersBefore = state.fish.filter((x) => x.gallery === f.gallery && x.status === 'caught')
+        .map((x) => ({ id: x.id, dbId: x.dbId, num: x.num }));
       Object.assign(f, base);
       const wanted = parseInt($('#af_num').value, 10);
       if (wanted && wanted !== f.num) {
@@ -582,15 +859,33 @@ function wireAdmin() {
         peers.splice(at, 0, f);
         peers.forEach((x, i) => { x.num = i + 1; });
       }
-      state.changes++; saveState(); editId = null; render(); adminMsg(esc(t('updated')), true); return;
+      /* S12 shift, mirrored to Supabase: peers whose number changed get a
+         capture_number PATCH, ordered to avoid transient duplicates
+         (descending when numbers go up, ascending when they go down). */
+      const newNumById = {}; state.fish.forEach((x) => { newNumById[x.id] = x.num; });
+      const shiftOps = peersBefore
+        .filter((p) => p.dbId && p.id !== f.id && newNumById[p.id] !== p.num)
+        .map((p) => ({ kind: 'patchNum', dbId: p.dbId, num: newNumById[p.id] }));
+      if (wanted && wanted < oldNum) shiftOps.sort((a, b) => b.num - a.num);
+      else if (wanted && wanted > oldNum) shiftOps.sort((a, b) => a.num - b.num);
+      const photoDataUrl = isDataUrl(formPhoto) ? formPhoto : null;
+      const snap = Object.assign({}, f); if (photoDataUrl) snap.photo = null;
+      queueUpdate(f, snap, photoDataUrl, shiftOps);
+      saveState(); editId = null; render(); adminMsg(esc(t('updated')), true); return;
     }
     const gallery = $('#af_gallery').value;
     const asPending = $('#af_status').value === 'pending';
-    const nf = Object.assign({ id: 'local-' + Date.now(), num: null, quest: null, gallery, status: asPending ? 'pending' : 'caught', suggested_place: '', when: '' }, base);
+    const nf = Object.assign({ id: 'local-' + Date.now(), dbId: null, num: null, quest: null, gallery, status: asPending ? 'pending' : 'caught', suggested_place: '', when: '' }, base);
     const wasTransfer = !!transferFromId;
-    if (wasTransfer) state.fish = state.fish.filter((x) => x.id !== transferFromId);
-    if (asPending) state.pending.push(nf); else { nf.num = nextNum(gallery); state.fish.push(nf); }
-    transferFromId = null; state.changes++; saveState(); render();
+    let transferDbId = null;
+    if (wasTransfer) {
+      const tf = state.fish.find((x) => x.id === transferFromId);
+      if (tf) transferDbId = tf.dbId || null;
+      state.fish = state.fish.filter((x) => x.id !== transferFromId);
+    }
+    if (asPending) { if (wasTransfer) nf.transferDbId = transferDbId; state.pending.push(nf); }
+    else { nf.num = nextNum(gallery); state.fish.push(nf); queueInsert(nf, { transferDbId }); }
+    transferFromId = null; saveState(); render();
     adminMsg(esc(wasTransfer ? t('transferred') + ' ' : '') + esc(asPending ? t('saved_pending') : t('saved_caught') + nf.num), true);
   });
   if (transferFromId) {
@@ -613,8 +908,4 @@ $('#popup').addEventListener('click', (e) => { if (e.target.id === 'popup') clos
 
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
 
-loadState().then(() => {
-  render();
-  const m = location.hash.match(/fish=([^&]+)/);
-  if (m) openPopup(decodeURIComponent(m[1]));
-});
+initApp();

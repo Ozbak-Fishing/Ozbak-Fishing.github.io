@@ -1,14 +1,19 @@
-# Ozbak — Lifelist App (V1 prototype)
+# Ozbak — Lifelist App (Supabase-backed)
 
-A static PWA prototype built from `../plan-de-match.md`, seeded with the real
-imported data (`data.json` = copy of `../data/lifelist-import.json`:
-**51 Main species, 2 Subspecies, 0 Hybrids, 78 Missing QC**) and the Ozbak
-logo (`ozbak-logo.png`).
+A static PWA (no build step) for Ozbak's fishing lifelist, built from
+`../plan-de-match.md`. Since 2026-11-21 the app is backed by the owner's
+real **Supabase** project — the same project (and the same tables) that his
+Lovable site reads. The public site stays read-only for visitors; only the
+signed-in admin can write.
+
+- **Live site**: https://ozbak-fishing.github.io/
+- **Supabase project**: `https://dapfearinbupdsuglrcs.supabase.co`
+  (URL + public anon key are embedded in `app.js` — they are client-safe by
+  design. There is **no** service_role key anywhere in this app, by design.)
 
 ## How to open / test locally
 
-Serve the folder over HTTP (a service worker and `fetch()` need `http://`,
-opening `file://` will not fully work):
+Serve the folder over HTTP (service worker + `fetch()` need `http://`):
 
 ```bash
 cd ~/workspace/app-ozbak/app
@@ -16,90 +21,120 @@ python3 -m http.server 8765
 # then open http://localhost:8765 in a browser (phone or desktop)
 ```
 
-Quick smoke tests:
+Smoke tests:
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8765/index.html
 node --check app.js && node --check sw.js
 ```
 
-On a phone on the same network, the page can be installed ("Add to Home
-screen") thanks to `manifest.json` + `sw.js`; after the first load, the app
-shell and data are cached for offline browsing.
+On a phone, the page can be installed ("Add to Home screen") thanks to
+`manifest.json` + `sw.js`.
 
-## What works (all local, in the browser)
+## How the data flows
 
-- **Home**: presentation, what a lifelist is, counter pills
-  (51 Main species / 2 Subspecies / 0 Hybrids / Missing QC), social buttons
-  (YouTube / Instagram / iNaturalist — placeholder `#` links, real URLs still
-  to be provided), gallery shortcuts, **statistics** (by year, country/place,
-  freshwater vs saltwater, family — bars show both the count and the %).
-- **Galleries** (Main / Subspecies / Hybrids / Missing QC): grid **and** list
-  views with toggle, search that matches English + French + scientific names
-  in either language, filters (family, water type, place), sort (number —
-  default, name, family), counter "x / y species".
-- **Language**: EN is the base; the FR/EN toggle translates the whole UI and
-  inverts fish names (selected language = big primary name, other language
-  secondary, scientific unchanged).
-- **Fish popup**: # + name, photo or placeholder, Identification
-  (scientific / EN / FR / family), Water type, Capture with **Date, Country
-  and Place on separate lines**, Notes, iNaturalist link when present,
-  Share button (`navigator.share`, falls back to copying the link).
-- **Missing QC**: name cards with a clean logo placeholder (no invented
-  photos). In Admin mode, each card gets a **Transfer** button that opens the
-  admin form pre-filled (names / scientific / family); only the capture info
-  + photo are added, then the species leaves Missing QC and joins Main (or
-  the pending list, if saved as pending).
-- **Admin** (see "simulated" below): add fish with a photo picked from the
-  device gallery **with a canvas crop step** (drag + zoom; the original photo
-  is never touched), edit any fish — including changing its #, which inserts
-  it at the new position and shifts higher numbers up by one (meant only to
-  fix a validation-order mistake), duplicate-scientific-name warning before
-  saving, **pending-confirmation list** (new catches stay unnumbered and
-  unpublished until confirmed, then receive the next number), sync indicator
-  (Synchronized / Pending: N), and the **data control (Sync blocked /
-  Wi-Fi only / Wi-Fi + mobile) inside the admin panel only**.
+### Live read (everyone, no login)
 
-## What is SIMULATED in V1 (not real yet)
+On load, the app fetches `species` and `missing_species` from Supabase REST
+with the **anon key** (RLS allows public SELECT on both tables) and maps
+rows to the app's fish model:
 
-- **PIN lock**: the PIN is only a local demo lock. A simple hash is kept in
-  `localStorage` on this device/browser — it is **not real security** and
-  anyone with the device could bypass it. It is a placeholder for
-  **Supabase Auth** (real login) in the next step.
-- **Sync**: there is no server. "Pending: N" counts local changes made since
-  the last simulated sync; "Simulate sync now" just resets the counter
-  (and refuses when the data control is set to "Sync blocked"). Real sync =
-  Supabase (database + photo storage) plugged in where `saveState()` /
-  `loadState()` currently read/write `localStorage`.
-- **Data persistence**: everything (fish, pending catches, settings, cropped
-  photo copies as data URLs) is stored in `localStorage` on top of the
-  imported JSON. The Admin panel has a "Reset demo data" button that erases
-  local changes and re-seeds from `data.json`.
-- **Social links** are `#` placeholders until the real URLs are provided.
+- `category` → gallery (`main` / `subspecies` / `hybrid(s)` → Hybrids);
+  `capture_number` → #; `water_type` → the Freshwater/Saltwater label
+  (Subspecies display as "Variant", as before); `country` / `place` are the
+  separated fields; `image_url` → photo; `inaturalist_url` → the iNat link.
+- Missing QC: the quest number is parsed out of `french_name`
+  (`"[73] Saumon Chinook"` → quest `73`, name `Saumon Chinook`);
+  `is_priority` → the ★ badge; `image_url` → the illustration.
 
-## Ready to plug into Supabase later
+Fallback chain if Supabase cannot be reached (short timeout):
 
-- Replace the PIN screen with Supabase Auth; keep the same admin UI.
-- Replace `localStorage` reads/writes with Supabase tables (one row per fish:
-  the JSON fields map 1-to-1) + a Storage bucket for photos (store the photo
-  URL instead of a data URL).
-- The public site is the same code with Admin never unlocked: read-only
-  queries for visitors, writes only for the authenticated admin (RLS).
-- Hosting: any free static host (Cloudflare Pages / Netlify / Vercel /
-  GitHub Pages) — nothing in this folder needs a build step.
+1. **Last-good dataset** persisted in `localStorage` (key `ozbakAppV2`);
+2. the **bundled `data.json`** snapshot (version `2026-11-21-r4`).
 
-## Data notes (found during the build)
+The old V1 store (`ozbakAppV1`, PIN simulation) is ignored except that its
+sync-mode choice is migrated once. The Admin panel shows which source is in
+use ("Data source").
 
-- All 53 caught fish have `photo: null` and `inaturalist: null`, and only
-  3/51 Main fish have notes — the complete notes and the photos live on the
-  current Lovable site, not in the Excel import. The app therefore shows the
-  logo placeholder everywhere for now (by design — no photos were invented).
-- Missing QC entries use `quest_num` (#7…X4) instead of a lifelist number,
-  and have no water type / capture place — the gallery shows their quest
-  number and, in the popup, the suggested place / when, when present (7/78
-  have notes).
-- Subspecies entries carry `category: "Variant"` (not Freshwater/Saltwater),
-  so the water-type filter on that gallery lists "Variant".
-- A few scientific names in the source keep the Excel's capitalisation
-  (e.g. `Acipenser Oxyrinchus` in Missing QC) — displayed as-is, search is
-  case/accent-insensitive so it does not affect finding them.
+### Admin auth (real — the PIN simulation is gone)
+
+The Admin tab shows an **email + password** form (Supabase Auth,
+`POST /auth/v1/token?grant_type=password`). The session (access/refresh
+token + expiry) is kept in `localStorage` (`ozbakSession`) and refreshed
+automatically when expired. After sign-in the app checks
+`user_roles?user_id=eq.<uid>`: **only an `admin` role unlocks the panel** —
+any other account gets a clear "not an admin account" message and is signed
+out immediately. The password itself is only ever sent from the form to
+Supabase; it is never stored or logged.
+
+### Writes (admin JWT only)
+
+All writes send the signed-in admin's JWT (RLS: "Admins can manage
+species / missing species"; storage `species-images` is public-read,
+admin-write). Every species write includes **all** fields, including the
+legacy merged `location` composed from country/place
+(`Canada + Québec → "Canada (Quebec)"`, `États-Unis + Maine → "Usa (Maine)"`)
+because the Lovable site still reads that string.
+
+- **Add / confirm a catch**: a new photo (from the existing picker + canvas
+  crop) is uploaded first to `species-images/<timestamp>-<random>.jpg`, its
+  public URL becomes `image_url`; then the row is INSERTed into `species`.
+- **Edit**: PATCH `species?id=eq.<uuid>`. Changing the # (S12, only to fix a
+  validation-order mistake) shifts the affected peers by ±1 with individual
+  PATCHes ordered to avoid transient duplicates (descending when numbers go
+  up, ascending when they go down), then the edited fish is PATCHed.
+- **Missing QC transfer**: the prefilled form INSERTs the species row, then
+  DELETEs the `missing_species` row.
+- The duplicate-scientific-name check (S2) still runs against the in-memory
+  list, so it works offline.
+
+### Offline: pending catches + outbox
+
+- **Pending-confirmation catches (S10) are LOCAL-ONLY**: unnumbered,
+  unpublished, never sent anywhere until the owner confirms them in the
+  Admin panel. Confirming assigns the next # and queues the insert.
+- Confirmed writes go through a **persisted outbox** (`localStorage`). A
+  write is queued instead of sent when: offline, not signed in as admin, the
+  data control is **Blocked**, or the data control is **Wi-Fi only** while
+  on a known cellular connection. The sync runner processes the queue
+  sequentially when signed in as admin + online + the data control allows
+  it; the **Sync now** button always forces an attempt when online and
+  signed in (a deliberate manual action — it works even in "Blocked" mode).
+  The indicator shows **Synchronized / Pending: N / Offline**.
+- After a successful write, the dataset is re-fetched from Supabase and the
+  UI re-renders, so the phone, the public site and Lovable all converge on
+  the same tables.
+
+### Without any connection
+
+The app still opens and browses (service worker `ozbak-v3`, network-first
+with cache fallback; last-good dataset in `localStorage`). Admin actions
+taken offline simply wait in the outbox / pending list until sync is
+possible.
+
+## What visitors see (unchanged from V1)
+
+Home with counters (51 Main / 2 Subspecies / 0 Hybrids / 78 Missing QC),
+social links (real URLs), statistics (year, country/place, water, family —
+count **and** %); galleries in grid/list with EN/FR/scientific search,
+filters, sort by number/name/family in both directions (newest first by
+default); the fish popup with Date / Country / Place on separate lines,
+notes and the iNaturalist link; EN base language with FR toggle inverting
+the primary name. The data control (Blocked / Wi-Fi only / Wi-Fi + mobile)
+lives **inside the admin panel only**, as specified.
+
+## Shared with Lovable — do not break
+
+The Lovable site reads the same `species` / `missing_species` tables and
+the legacy `location` string, and displays Missing QC names **with** their
+`[n]` prefix. Never drop or rename existing columns; when this app writes a
+species it always composes `location` from country/place, and it never
+writes `missing_species` names (transfers delete the row instead).
+
+## Verification status
+
+Verified locally with stubbed `fetch` (no real credentials): live-read
+mapping (51/2/0/78, quest parsing, country/place), admin vs non-admin
+sign-in, and the outbox (offline queue → sync inserts once with the
+composed legacy location). **Not** verifiable without the owner: a real
+login and a real photo upload on the live site.
