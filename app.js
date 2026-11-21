@@ -33,6 +33,7 @@ const T = {
     what_title: 'What is a lifelist?',
     what_text: 'A lifelist is the search for ALL fish species — micro or monster, every size counts — as long as it is caught on a line. Each new species, once its identification is confirmed, takes the next number on the list, in catch order.',
     follow: 'Follow me',
+    qr_caption: 'Scan to see my lifelist',
     galleries: 'Galleries',
     stats: 'Statistics',
     stat_year: 'By year', stat_place: 'By country / place', stat_water: 'Freshwater vs Saltwater', stat_family: 'By family',
@@ -93,6 +94,7 @@ const T = {
     what_title: "C'est quoi, une lifelist ?",
     what_text: "Une lifelist, c'est la recherche de TOUS les poissons — micro ou monstre, toutes les tailles comptent — à condition de le prendre à la ligne. Chaque nouvelle espèce, une fois son identification confirmée, prend le prochain numéro de la liste, dans l'ordre de capture.",
     follow: 'Suivez-moi',
+    qr_caption: 'Scanne pour voir ma lifelist',
     galleries: 'Galeries',
     stats: 'Statistiques',
     stat_year: 'Par année', stat_place: 'Par pays / lieu', stat_water: 'Eau douce vs eau salée', stat_family: 'Par famille',
@@ -522,7 +524,10 @@ function homeHTML() {
     '<a class="pill secondary" href="#" data-go="missing">' + cQ + ' Missing QC</a></div>' +
     '<p style="margin-top:16px"><a href="#" data-go="admin">⚙ ' + esc(t('home_admin_note')) + '</a></p>' +
     '<div class="socials"><span style="align-self:center;font-weight:700;color:var(--blue)">' + esc(t('follow')) + ' :</span>' +
-    '<a href="https://www.youtube.com/@Ozbak-fishing" target="_blank" rel="noopener">YouTube</a><a href="https://www.instagram.com/ozbak_fishing/" target="_blank" rel="noopener">Instagram</a><a href="https://www.inaturalist.org/people/6703182" target="_blank" rel="noopener">iNaturalist</a></div></section>' +
+    '<a href="https://www.youtube.com/@Ozbak-fishing" target="_blank" rel="noopener">YouTube</a><a href="https://www.instagram.com/ozbak_fishing/" target="_blank" rel="noopener">Instagram</a><a href="https://www.inaturalist.org/people/6703182" target="_blank" rel="noopener">iNaturalist</a></div>' +
+    '<div class="qr-block"><button type="button" class="qr-btn" data-qr aria-label="QR code — https://ozbak-fishing.github.io/"><img src="qr-site.svg" alt="QR code — https://ozbak-fishing.github.io/"></button>' +
+    '<p class="qr-caption">' + esc(t('qr_caption')) + '</p>' +
+    '<p class="qr-url">https://ozbak-fishing.github.io/</p></div></section>' +
     '<section class="section"><h2>' + esc(t('what_title')) + '</h2><p class="lead">' + esc(t('what_text')) + '</p></section>' +
     '<section class="section"><h2>' + esc(t('galleries')) + '</h2><div class="gal-cards">' +
     galCard('main', cM, t('nav_main')) + galCard('subspecies', cS, t('nav_sub')) +
@@ -686,6 +691,13 @@ function openPopup(id) {
   $('#shareBtn').addEventListener('click', () => shareFish(f));
 }
 function closePopup() { $('#popup').hidden = true; }
+/* ----- QR code to the public site (shown in person, e.g. while travelling) ----- */
+function openQr() {
+  $('#popupContent').innerHTML = '<h2>' + esc(t('qr_caption')) + '</h2>' +
+    '<img class="bigqr" src="qr-site.svg" alt="QR code — https://ozbak-fishing.github.io/">' +
+    '<p class="qr-url">https://ozbak-fishing.github.io/</p>';
+  $('#popup').hidden = false;
+}
 function shareFish(f) {
   const url = location.href.split('#')[0] + '#fish=' + f.id;
   const text = '#' + (f.num || f.quest || '') + ' ' + primaryName(f) + ' (' + f.scientific + ') — Ozbak Lifelist';
@@ -926,7 +938,9 @@ document.addEventListener('click', (e) => {
   const nav = e.target.closest('a[data-nav]');
   if (nav) { e.preventDefault(); const n = nav.getAttribute('data-nav'); go(n === 'home' ? { name: 'home' } : n === 'admin' ? { name: 'admin' } : { name: 'gallery', gallery: n }); return; }
   const g = e.target.closest('[data-go]');
-  if (g) { e.preventDefault(); const n = g.getAttribute('data-go'); go(n === 'admin' ? { name: 'admin' } : { name: 'gallery', gallery: n }); }
+  if (g) { e.preventDefault(); const n = g.getAttribute('data-go'); go(n === 'admin' ? { name: 'admin' } : { name: 'gallery', gallery: n }); return; }
+  const qr = e.target.closest('[data-qr]');
+  if (qr) { e.preventDefault(); openQr(); }
 });
 $('#langToggle').addEventListener('click', () => { lang = lang === 'en' ? 'fr' : 'en'; localStorage.setItem(LANG_KEY, lang); render(); });
 $('#burger').addEventListener('click', () => $('#mainnav').classList.toggle('open'));

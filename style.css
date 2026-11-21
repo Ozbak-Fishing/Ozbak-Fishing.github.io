@@ -51,6 +51,15 @@ main{max-width:1150px;margin:0 auto;padding:20px 16px 40px}
 .socials a{border:2px solid var(--blue);color:var(--blue);background:#fff;text-decoration:none;
   font-weight:700;border-radius:999px;padding:8px 16px}
 .socials a:hover{background:var(--blue);color:#fff}
+.hero .qr-block{margin-top:22px}
+.qr-btn{background:#fff;border:2px solid var(--blue);border-radius:14px;padding:10px;line-height:0}
+.qr-btn:hover{box-shadow:0 3px 12px rgba(0,67,147,.18)}
+.qr-btn img{width:132px;height:132px;display:block}
+.hero .qr-caption{font-weight:700;color:var(--blue);margin:10px auto 2px}
+.hero .qr-url{color:var(--muted);font-size:.9rem;margin:0 auto}
+.popup .bigqr{width:min(72vw,340px);height:auto;display:block;margin:4px auto 10px;
+  background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px}
+.popup .qr-url{text-align:center;color:var(--muted);margin:0}
 .section{margin-top:30px}
 .section h2{color:var(--blue);margin:0 0 6px}
 .section p.lead{color:#33475c;line-height:1.55;max-width:760px}

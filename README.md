@@ -111,7 +111,7 @@ because the Lovable site still reads that string.
 
 ### Without any connection
 
-The app still opens and browses (service worker `ozbak-v4`, network-first
+The app still opens and browses (service worker `ozbak-v5`, network-first
 with cache fallback; last-good dataset in `localStorage`). Admin actions
 taken offline simply wait in the outbox / pending list until sync is
 possible.
@@ -120,7 +120,11 @@ possible.
 
 Home with counters (51 Main / 2 Subspecies / 0 Hybrids / 78 Missing QC),
 social links (real URLs), statistics (year, country/place, water, family —
-count **and** %); galleries in grid/list with EN/FR/scientific search,
+count **and** %); the home page also carries a **QR code block**
+(`qr-site.svg`, encoding https://ozbak-fishing.github.io/) under the
+social links — meant to be shown to people he meets, e.g. while travelling:
+tap it and it opens large in the usual popup. The SVG is a bundled asset
+in the service-worker precache, so it displays fully offline; galleries in grid/list with EN/FR/scientific search,
 filters (family, type, and two location dropdowns — Country, then Place,
 the place list following the selected country), sort by number/name/family in both directions (newest first by
 default); the fish popup with Date / Country / Place on separate lines,
