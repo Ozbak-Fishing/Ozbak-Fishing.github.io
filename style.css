@@ -179,6 +179,11 @@ textarea{min-height:74px;resize:vertical}
 .btn:hover{background:var(--blue-dark)}
 .btn.ghost{background:#fff;color:var(--blue);border:2px solid var(--blue)}
 .btn.danger{background:#b3261e}
+.btn.danger-outline{background:#fff;color:#b3261e;border:2px solid #b3261e}
+.btn.danger-outline:hover{background:#fdecea}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.danger-zone{margin-top:30px;border-top:2px solid #f0c9c6;padding-top:16px}
+.danger-box{border:1px solid #e5a19c;background:#fdf3f2;border-radius:10px;padding:12px 14px;margin-top:12px}
 .btn.small{padding:7px 13px;margin-top:0;font-size:.9rem}
 .warn{background:#fff4e0;border:1px solid #e0a63c;border-radius:10px;padding:10px 14px;margin-top:12px}
 .ok{background:#e6f4ea;border:1px solid #4c9a5f;border-radius:10px;padding:10px 14px;margin-top:12px}
