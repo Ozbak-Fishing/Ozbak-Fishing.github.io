@@ -1,7 +1,8 @@
 'use strict';
-/* Ozbak V1 service worker: cache-first for the app shell + data,
-   so the app opens and browses offline after the first visit. */
-const CACHE = 'ozbak-v1';
+/* Ozbak service worker v2: network-first for the app shell + data so updates
+   propagate on the next visit, with cache fallback for offline use.
+   Bump CACHE whenever the shell changes materially. */
+const CACHE = 'ozbak-v2';
 const SHELL = ['./', './index.html', './style.css', './app.js', './data.json', './ozbak-logo.png', './manifest.json'];
 
 self.addEventListener('install', (e) => {
@@ -12,11 +13,14 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  const sameOrigin = url.origin === self.location.origin;
+  if (!sameOrigin) return; // remote assets (e.g. Supabase photos): browser handles them
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || fetch(e.request).then((res) => {
+    fetch(e.request).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
       return res;
-    }).catch(() => caches.match('./index.html')))
+    }).catch(() => caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || caches.match('./index.html')))
   );
 });

@@ -34,6 +34,7 @@ const T = {
     search_ph: 'Search a species…',
     all_families: 'All families', all_types: 'All types', all_places: 'All places',
     sort_number: 'Sort: number', sort_name: 'Sort: name', sort_family: 'Sort: family',
+    dir_desc: '↓ Descending', dir_asc: '↑ Ascending', priority: '★ Priority',
     species: 'species', no_results: 'No species matches your search.',
     grid: 'Grid', list: 'List',
     identification: 'Identification', scientific: 'Scientific name', english: 'English name',
@@ -44,7 +45,7 @@ const T = {
     gal_main_d: 'My main collection of caught fish species.',
     gal_sub_d: 'Subspecies and variants I have caught.',
     gal_hyb_d: 'Hybrids I have caught.',
-    gal_missing_d: 'Fish of Québec I have not caught yet — a secondary gallery.',
+    gal_missing_d: 'Fish of Québec I have not caught yet.',
     transfer: 'Transfer (I caught it!)',
     admin_title: 'Admin',
     pin_set_title: 'Set your admin PIN (V1 local simulation)',
@@ -94,6 +95,7 @@ const T = {
     search_ph: 'Rechercher une espèce…',
     all_families: 'Toutes les familles', all_types: 'Tous types', all_places: 'Tous les lieux',
     sort_number: 'Tri : numéro', sort_name: 'Tri : nom', sort_family: 'Tri : famille',
+    dir_desc: '↓ Décroissant', dir_asc: '↑ Croissant', priority: '★ Prioritaire',
     species: 'espèces', no_results: 'Aucune espèce ne correspond à votre recherche.',
     grid: 'Grille', list: 'Liste',
     identification: 'Identification', scientific: 'Nom scientifique', english: 'Nom anglais',
@@ -104,7 +106,7 @@ const T = {
     gal_main_d: 'Ma collection principale d’espèces de poissons capturées.',
     gal_sub_d: 'Sous-espèces et variants que j’ai capturés.',
     gal_hyb_d: 'Hybrides que j’ai capturés.',
-    gal_missing_d: 'Les poissons du Québec que je n’ai pas encore capturés — une galerie secondaire.',
+    gal_missing_d: 'Les poissons du Québec que je n’ai pas encore capturés.',
     transfer: 'Transférer (je l’ai pris !)',
     admin_title: 'Admin',
     pin_set_title: 'Crée ton code PIN admin (simulation locale V1)',
@@ -168,15 +170,21 @@ function seedFromData(data) {
     id: 'missing-' + i + '-' + slug(x.scientific), num: null, quest: x.quest_num || '',
     gallery: 'missing', category: '', name_en: x.name_en || '', name_fr: x.name_fr || '',
     scientific: x.scientific || '', family: x.family || '', date: '', country: '', place: '',
-    notes: x.notes || '', photo: null, inaturalist: '', status: 'missing',
+    notes: x.notes || '', photo: x.photo || null, inaturalist: '', status: 'missing', priority: !!x.priority,
     suggested_place: x.suggested_place || '', when: x.when || ''
   }));
-  return { fish, pending: [], changes: 0, syncMode: 'wifi', pinHash: null };
+  return { fish, pending: [], changes: 0, syncMode: 'wifi', pinHash: null, seedVersion: data.version || '' };
 }
 function saveState() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* storage full (photos) — V1 keeps going in memory */ } }
 function loadState() {
-  try { const raw = localStorage.getItem(LS_KEY); if (raw) { state = JSON.parse(raw); return Promise.resolve(); } } catch (e) {}
-  return fetch('data.json').then((r) => r.json()).then((data) => { state = seedFromData(data); saveState(); });
+  let stored = null;
+  try { const raw = localStorage.getItem(LS_KEY); if (raw) stored = JSON.parse(raw); } catch (e) {}
+  return fetch('data.json').then((r) => r.json()).then((data) => {
+    if (stored && stored.seedVersion === (data.version || '')) { state = stored; return; }
+    const fresh = seedFromData(data);
+    if (stored) { fresh.pinHash = stored.pinHash || null; fresh.syncMode = stored.syncMode || 'wifi'; }
+    state = fresh; saveState();
+  }).catch(() => { if (stored) state = stored; });
 }
 const caught = (gallery) => state.fish.filter((f) => f.gallery === gallery && f.status === 'caught');
 const missingAll = () => state.fish.filter((f) => f.gallery === 'missing' && f.status === 'missing');
@@ -250,7 +258,7 @@ function homeHTML() {
 /* ----- gallery ----- */
 const GAL_TITLE = { main: 'nav_main', subspecies: 'nav_sub', hybrids: 'nav_hyb', missing: 'nav_missing' };
 const GAL_DESC = { main: 'gal_main_d', subspecies: 'gal_sub_d', hybrids: 'gal_hyb_d', missing: 'gal_missing_d' };
-let galFilters = { q: '', family: '', type: '', place: '', sort: 'number' };
+let galFilters = { q: '', family: '', type: '', place: '', sort: 'number', dir: 'desc' };
 function galleryItems(gallery) {
   return gallery === 'missing' ? missingAll() : caught(gallery);
 }
@@ -266,7 +274,8 @@ function galleryHTML(gallery) {
     '<div class="row"><select id="gfam">' + opt(fams, t('all_families')) + '</select>' +
     '<select id="gtype">' + opt(types, t('all_types')) + '</select>' +
     '<select id="gplace">' + opt(places, t('all_places')) + '</select>' +
-    '<select id="gsort"><option value="number">' + esc(t('sort_number')) + '</option><option value="name">' + esc(t('sort_name')) + '</option><option value="family">' + esc(t('sort_family')) + '</option></select></div>' +
+    '<select id="gsort"><option value="number">' + esc(t('sort_number')) + '</option><option value="name">' + esc(t('sort_name')) + '</option><option value="family">' + esc(t('sort_family')) + '</option></select>' +
+    '<button id="gdir" type="button"></button></div>' +
     '<div class="meta"><span class="count" id="gcount"></span>' +
     '<span class="viewtoggle"><button id="vgrid" class="' + (viewMode === 'grid' ? 'on' : '') + '">▦ ' + esc(t('grid')) + '</button>' +
     '<button id="vlist" class="' + (viewMode === 'list' ? 'on' : '') + '">☰ ' + esc(t('list')) + '</button></span></div></div>' +
@@ -282,9 +291,10 @@ function filteredItems(gallery) {
     return true;
   });
   const questNum = (f) => { const n = parseInt(f.quest, 10); return isNaN(n) ? 9999 : n; };
-  if (galFilters.sort === 'name') items.sort((a, b) => primaryName(a).localeCompare(primaryName(b)));
-  else if (galFilters.sort === 'family') items.sort((a, b) => (a.family || '').localeCompare(b.family || '') || (a.num || 0) - (b.num || 0));
-  else items.sort((a, b) => gallery === 'missing' ? questNum(a) - questNum(b) || String(a.quest).localeCompare(String(b.quest)) : (a.num || 0) - (b.num || 0));
+  const dirF = galFilters.dir === 'desc' ? -1 : 1;
+  if (galFilters.sort === 'name') items.sort((a, b) => dirF * primaryName(a).localeCompare(primaryName(b)));
+  else if (galFilters.sort === 'family') items.sort((a, b) => dirF * ((a.family || '').localeCompare(b.family || '') || (a.num || 0) - (b.num || 0)));
+  else items.sort((a, b) => dirF * (gallery === 'missing' ? questNum(a) - questNum(b) || String(a.quest).localeCompare(String(b.quest)) : (a.num || 0) - (b.num || 0)));
   return items;
 }
 function photoHTML(f, cls) {
@@ -294,7 +304,8 @@ function photoHTML(f, cls) {
 function cardHTML(f, gallery) {
   const badge = gallery === 'missing' ? ('#' + esc(f.quest)) : ('#' + f.num);
   let h = '<div><button class="card" data-fish="' + f.id + '"><span class="ph">' + photoHTML(f) +
-    '<span class="badge">' + badge + '</span>' + (f.photo ? '<span class="sci">' + esc(f.scientific) + '</span>' : '') + '</span>' +
+    '<span class="badge">' + badge + '</span>' + (f.photo ? '<span class="sci">' + esc(f.scientific) + '</span>' : '') +
+    (gallery === 'missing' && f.priority ? '<span class="prio">' + esc(t('priority')) + '</span>' : '') + '</span>' +
     '<span class="body" style="display:block"><span class="primary" style="display:block">' + esc(primaryName(f)) + '</span>' +
     '<span class="secondary" style="display:block">' + esc(secondaryName(f)) + '</span>' +
     '<span class="foot"><span class="water' + (f.category === 'Saltwater' ? ' salt' : '') + '">' + esc(f.category || '—') + '</span>' +
@@ -324,7 +335,7 @@ function drawGalleryResults(gallery) {
   box.querySelectorAll('[data-transfer]').forEach((el) => el.addEventListener('click', (e) => { e.stopPropagation(); startTransfer(el.getAttribute('data-transfer')); }));
 }
 function wireGallery(gallery) {
-  if (window._lastGal !== gallery) { galFilters = { q: '', family: '', type: '', place: '', sort: 'number' }; window._lastGal = gallery; }
+  if (window._lastGal !== gallery) { galFilters = { q: '', family: '', type: '', place: '', sort: 'number', dir: gallery === 'missing' ? 'asc' : 'desc' }; window._lastGal = gallery; }
   const on = () => drawGalleryResults(gallery);
   if (galFilters.family) $('#gfam').value = galFilters.family;
   if (galFilters.type) $('#gtype').value = galFilters.type;
@@ -335,6 +346,10 @@ function wireGallery(gallery) {
   $('#gtype').addEventListener('change', (e) => { galFilters.type = e.target.value; on(); });
   $('#gplace').addEventListener('change', (e) => { galFilters.place = e.target.value; on(); });
   $('#gsort').addEventListener('change', (e) => { galFilters.sort = e.target.value; on(); });
+  const dirBtn = $('#gdir');
+  const setDirLabel = () => { dirBtn.textContent = t(galFilters.dir === 'desc' ? 'dir_desc' : 'dir_asc'); };
+  setDirLabel();
+  dirBtn.addEventListener('click', () => { galFilters.dir = galFilters.dir === 'desc' ? 'asc' : 'desc'; setDirLabel(); on(); });
   $('#vgrid').addEventListener('click', () => { viewMode = 'grid'; localStorage.setItem(VIEW_KEY, 'grid'); render(); });
   $('#vlist').addEventListener('click', () => { viewMode = 'list'; localStorage.setItem(VIEW_KEY, 'list'); render(); });
   drawGalleryResults(gallery);

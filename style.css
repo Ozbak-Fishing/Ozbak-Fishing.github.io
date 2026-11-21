@@ -78,6 +78,8 @@ main{max-width:1150px;margin:0 auto;padding:20px 16px 40px}
   padding:14px;display:flex;flex-direction:column;gap:10px}
 .toolbar input[type=search],.toolbar select{padding:10px 12px;border:1px solid var(--border);
   border-radius:10px;font:inherit;background:#fff;width:100%}
+.toolbar #gdir{padding:10px 12px;border:1px solid var(--border);border-radius:10px;font:inherit;
+  background:#fff;color:var(--blue);font-weight:700;cursor:pointer;width:100%}
 .toolbar .row{display:flex;gap:10px;flex-wrap:wrap}
 .toolbar .row>*{flex:1;min-width:140px}
 .toolbar .meta{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -100,6 +102,8 @@ main{max-width:1150px;margin:0 auto;padding:20px 16px 40px}
   text-shadow:0 1px 5px rgba(0,0,0,.75);z-index:2}
 .badge{position:absolute;top:10px;left:10px;z-index:2;background:var(--blue);color:#fff;
   font-weight:800;border-radius:999px;padding:4px 11px;font-size:.85rem}
+.prio{position:absolute;top:10px;right:10px;z-index:2;background:#f5a623;color:#fff;
+  font-weight:800;border-radius:999px;padding:4px 11px;font-size:.8rem}
 .card .body{padding:12px 14px 14px}
 .card .primary{font-size:1.15rem;font-weight:800}
 .card .secondary{color:var(--muted);margin-top:1px}
