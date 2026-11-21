@@ -61,7 +61,8 @@ const T = {
     not_admin: 'This account is not an admin account for this app.',
     sync_status: 'Sync status', synchronized: 'Synchronized', pending_sync: 'Pending', sync_offline: 'Offline',
     data_control: 'Data control (sync)', sync_blocked: 'Sync blocked', sync_wifi: 'Wi-Fi only', sync_both: 'Wi-Fi + mobile data',
-    sync_now: 'Sync now', sync_error: 'Sync problem: the last change could not be sent. It stays saved on this device and will be retried.',
+    sync_now: 'Sync now', backup_btn: '⬇ Full backup (ZIP: data + photos)', backup_running: 'Preparing backup…',
+    sync_error: 'Sync problem: the last change could not be sent. It stays saved on this device and will be retried.',
     sync_done_msg: 'Sync done — the site copy is now up to date.',
     sync_queued_msg: 'Saved on this device — it will sync when sign-in, connection and the data control allow it.',
     add_title: 'Add a fish', edit_title: 'Edit a fish',
@@ -127,7 +128,8 @@ const T = {
     not_admin: "Ce compte n'est pas un compte admin pour cette app.",
     sync_status: 'État de la synchro', synchronized: 'Synchronisé', pending_sync: 'En attente', sync_offline: 'Hors ligne',
     data_control: 'Contrôle des données (synchro)', sync_blocked: 'Synchro bloquée', sync_wifi: 'Wi-Fi seulement', sync_both: 'Wi-Fi + données mobiles',
-    sync_now: 'Synchroniser', sync_error: "Problème de synchro : le dernier changement n'a pas pu être envoyé. Il reste enregistré sur cet appareil et sera réessayé.",
+    sync_now: 'Synchroniser', backup_btn: '⬇ Sauvegarde complète (ZIP : données + photos)', backup_running: 'Préparation de la sauvegarde…',
+    sync_error: "Problème de synchro : le dernier changement n'a pas pu être envoyé. Il reste enregistré sur cet appareil et sera réessayé.",
     sync_done_msg: 'Synchro terminée — la copie du site est maintenant à jour.',
     sync_queued_msg: "Enregistré sur cet appareil — la synchro se fera quand la connexion, le compte admin et le contrôle des données le permettront.",
     add_title: 'Ajouter un poisson', edit_title: 'Modifier un poisson',
@@ -669,6 +671,50 @@ function galleryHTML(gallery) {
 function placeOptionsFor(gallery, country) {
   return [...new Set(galleryItems(gallery).filter((f) => !country || f.country === country).map((f) => f.place).filter(Boolean))].sort();
 }
+/* ---------- Full backup: one ZIP holding every fish/quest record plus
+   every photo file (STORE method, no compression library needed — the
+   photos are JPEGs, already compressed). The Supabase free project has
+   no automatic backups, so this file IS the owner's safety net: the
+   JSON restores the data, the folders restore the images. ---------- */
+const CRC_TABLE = (() => { const tb = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); tb[n] = c >>> 0; } return tb; })();
+function crc32(bytes) { let c = 0xFFFFFFFF; for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files) {
+  const enc = new TextEncoder(); const chunks = []; const central = []; let offset = 0;
+  files.forEach((f) => {
+    const name = enc.encode(f.name); const crc = crc32(f.data); const size = f.data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, size, true); lh.setUint32(22, size, true); lh.setUint16(26, name.length, true);
+    chunks.push(new Uint8Array(lh.buffer), name, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, size, true); ch.setUint32(24, size, true); ch.setUint16(28, name.length, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + size;
+  });
+  const cdStart = offset; let cdSize = 0; central.forEach((c) => { cdSize += c.length; });
+  const eo = new DataView(new ArrayBuffer(22));
+  eo.setUint32(0, 0x06054b50, true); eo.setUint16(8, files.length, true); eo.setUint16(10, files.length, true);
+  eo.setUint32(12, cdSize, true); eo.setUint32(16, cdStart, true);
+  return new Blob(chunks.concat(central, [new Uint8Array(eo.buffer)]), { type: 'application/zip' });
+}
+function zipFileName(url) { const p = String(url).split('/'); return p[p.length - 1] || 'photo.jpg'; }
+async function doBackup(btn) {
+  const label = btn.textContent; btn.disabled = true; btn.textContent = t('backup_running');
+  try {
+    const files = [{ name: 'ozbak-data.json', data: new TextEncoder().encode(JSON.stringify({ exported_at: new Date().toISOString(), fish: state.fish, pending: state.pending }, null, 2)) }];
+    const urls = new Map();
+    state.fish.forEach((f) => { if (f.photo && f.photo.indexOf('http') === 0) urls.set(f.photo, (f.gallery === 'missing' ? 'illustrations/' : 'photos/') + zipFileName(f.photo)); });
+    for (const pair of urls) {
+      try { const r = await fetch(pair[0]); if (r.ok) files.push({ name: pair[1], data: new Uint8Array(await r.arrayBuffer()) }); } catch (e) { /* unreachable photo: skipped, its URL stays in the JSON */ }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(makeZip(files)); a.download = 'ozbak-sauvegarde-' + todayLocalISO() + '.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } finally { btn.disabled = false; btn.textContent = label; }
+}
+
 function filteredItems(gallery) {
   const q = norm(galFilters.q);
   let items = galleryItems(gallery).filter((f) => {
@@ -684,6 +730,9 @@ function filteredItems(gallery) {
   if (galFilters.sort === 'name') items.sort((a, b) => dirF * primaryName(a).localeCompare(primaryName(b)));
   else if (galFilters.sort === 'family') items.sort((a, b) => dirF * ((a.family || '').localeCompare(b.family || '') || (a.num || 0) - (b.num || 0)));
   else items.sort((a, b) => dirF * (gallery === 'missing' ? questNum(a) - questNum(b) || String(a.quest).localeCompare(String(b.quest)) : (a.num || 0) - (b.num || 0)));
+  /* Missing QC: the owner's priority quests always sit on top of the
+     gallery; the chosen sort still applies inside each group. */
+  if (gallery === 'missing') items = items.filter((f) => f.priority).concat(items.filter((f) => !f.priority));
   return items;
 }
 function photoHTML(f, cls) {
@@ -838,7 +887,8 @@ function adminHTML() {
     (state.syncError ? '<div class="warn" style="margin-top:10px">' + esc(t('sync_error')) + '<br><span class="small">' + esc(state.syncError.message || '') + (state.syncError.at ? ' · ' + esc(new Date(state.syncError.at).toLocaleString()) : '') + '</span></div>' : '') +
     '<h3 style="margin-top:18px">' + esc(t('data_control')) + '</h3><div class="radio-row">' +
     radio('blocked', t('sync_blocked')) + radio('wifi', t('sync_wifi')) + radio('both', t('sync_both')) + '</div>' +
-    '<button class="btn ghost" id="syncNow">' + esc(t('sync_now')) + '</button></div>' +
+    '<button class="btn ghost" id="syncNow">' + esc(t('sync_now')) + '</button> ' +
+    '<button class="btn ghost" id="backupBtn">' + esc(t('backup_btn')) + '</button></div>' +
     '<div class="panel"><h3>' + esc(t('pending_title')) + ' (' + state.pending.length + ')</h3>' + pendingList + '</div>' +
     '<div class="panel"><h3 id="formTitle">' + esc(t('add_title')) + '</h3>' +
     '<label>' + esc(t('edit_existing')) + '</label><select id="editSelect"><option value="">' + esc(t('choose_fish')) + '</option>' + editOptions + '</select>' +
@@ -995,6 +1045,7 @@ function wireAdmin() {
     return;
   }
   document.querySelectorAll('input[name=syncmode]').forEach((r) => r.addEventListener('change', () => { state.syncMode = r.value; saveState(); processOutbox(false); }));
+  $('#backupBtn').addEventListener('click', () => doBackup($('#backupBtn')));
   $('#syncNow').addEventListener('click', async () => {
     await processOutbox(true); // deliberate manual action: forces an attempt even when sync is "blocked"
     if (!state.outbox.length) adminMsg(esc(t('sync_done_msg')), true);
