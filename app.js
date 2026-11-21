@@ -948,4 +948,8 @@ $('#popup').addEventListener('click', (e) => { if (e.target.id === 'popup') clos
 
 if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
 
+/* Ask the browser to keep this app's storage (offline dataset + photo
+   cache) persistent, so Android does not evict it under storage pressure. */
+if (navigator.storage && navigator.storage.persist) { navigator.storage.persist().catch(() => {}); }
+
 initApp();
