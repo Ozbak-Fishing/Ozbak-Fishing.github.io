@@ -522,7 +522,6 @@ function homeHTML() {
     '<a class="pill" href="#" data-go="subspecies">' + cS + ' Subspecies</a>' +
     '<a class="pill" href="#" data-go="hybrids">' + cH + ' Hybrids</a>' +
     '<a class="pill secondary" href="#" data-go="missing">' + cQ + ' Missing QC</a></div>' +
-    '<p style="margin-top:16px"><a href="#" data-go="admin">⚙ ' + esc(t('home_admin_note')) + '</a></p>' +
     '<div class="socials"><span style="align-self:center;font-weight:700;color:var(--blue)">' + esc(t('follow')) + ' :</span>' +
     '<a href="https://www.youtube.com/@Ozbak-fishing" target="_blank" rel="noopener">YouTube</a><a href="https://www.instagram.com/ozbak_fishing/" target="_blank" rel="noopener">Instagram</a><a href="https://www.inaturalist.org/people/6703182" target="_blank" rel="noopener">iNaturalist</a></div>' +
     '<div class="qr-block"><button type="button" class="qr-btn" data-qr aria-label="QR code — https://ozbak-fishing.github.io/"><img src="qr-site.svg" alt="QR code — https://ozbak-fishing.github.io/"></button>' +
