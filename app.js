@@ -80,6 +80,10 @@ const T = {
     saved_pending: 'Saved as pending — no number, not published, until confirmed.',
     saved_caught: 'Saved and published with #', transferred: 'Transferred! It left Missing QC.',
     updated: 'Fish updated.',
+    del_btn: 'Delete this fish', del_intro: 'You are about to permanently delete:',
+    del_consequence: 'It will be removed from the app and from the public site. The other fish keep their numbers. This cannot be undone.',
+    del_type_label: 'Type the fish number to confirm', del_final: 'Delete permanently', del_cancel: 'Cancel',
+    deleted_msg: 'Fish deleted.',
     data_source: 'Data source', source_live: 'Supabase — live data', source_cache: 'Saved copy on this device (the live data could not be reached)',
     source_bundled: 'Bundled copy in the app (the live data could not be reached)', refresh_btn: 'Reload data from Supabase',
     missing_admin_note: 'Admin is unlocked: you can transfer a missing species you caught from the Missing QC gallery.',
@@ -142,6 +146,10 @@ const T = {
     saved_pending: "Enregistré en attente — pas de numéro, non publié, jusqu'à confirmation.",
     saved_caught: 'Enregistré et publié avec le #', transferred: 'Transféré ! Il a quitté les Manquants QC.',
     updated: 'Poisson mis à jour.',
+    del_btn: 'Effacer ce poisson', del_intro: 'Tu es sur le point d’effacer définitivement :',
+    del_consequence: "Il sera retiré de l'app et du site public. Les autres poissons gardent leurs numéros. C'est impossible à annuler.",
+    del_type_label: 'Tape le numéro du poisson pour confirmer', del_final: 'Effacer définitivement', del_cancel: 'Annuler',
+    deleted_msg: 'Poisson effacé.',
     data_source: 'Source des données', source_live: 'Supabase — données en direct', source_cache: "Copie enregistrée sur cet appareil (données en direct injoignables)",
     source_bundled: "Copie intégrée à l'app (données en direct injoignables)", refresh_btn: 'Recharger les données depuis Supabase',
     missing_admin_note: 'Admin déverrouillé : tu peux transférer une espèce manquante que tu as prise depuis la galerie Manquants QC.',
@@ -355,6 +363,39 @@ function queueUpdate(fish, snap, photoDataUrl, shiftOps) {
   saveState();
   processOutbox(false);
 }
+/* ----- protected delete (caught fish) ----- */
+/* Anti-misclick safety: the admin must type the fish's exact capture
+   number to arm the final delete button — two deliberate steps, and no
+   native confirm() anywhere. Pure helper so it stays unit-testable. */
+function deleteCodeMatches(fish, typed) {
+  if (!fish || fish.num == null) return false;
+  return String(typed == null ? '' : typed).trim() === String(fish.num).trim();
+}
+/* Photo file name inside the species-images bucket, derived from its
+   public URL (null when the photo does not point at that bucket). */
+function storageFileNameFromUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const marker = '/storage/v1/object/public/species-images/';
+  const i = url.indexOf(marker);
+  if (i < 0) return null;
+  const name = decodeURIComponent(url.slice(i + marker.length).split('?')[0].split('#')[0]).trim();
+  return name || null;
+}
+function deleteCaughtFish(f) {
+  state.fish = state.fish.filter((x) => x.id !== f.id);
+  if (f.dbId) {
+    /* Numbers are NOT renumbered: the other fish keep theirs. If the
+       deleted fish held the highest number of its gallery, nextNum()
+       (max + 1) may hand that number to the next catch — intended. */
+    queueOp({ kind: 'delete', dbId: f.dbId, photoFile: storageFileNameFromUrl(f.photo) });
+  } else {
+    /* Local-only fish (never synced — its insert is still queued): drop
+       the queued op(s) for it and forget it locally. No server call
+       exists to make. */
+    state.outbox = state.outbox.filter((o) => o.localId !== f.id);
+    saveState();
+  }
+}
 async function executeOp(op) {
   /* Invariant: a photo-bearing op is never degraded into a photo-less
      write. uploadPhoto() must succeed BEFORE any species POST/PATCH runs;
@@ -380,6 +421,22 @@ async function executeOp(op) {
     await sbWrite('PATCH', '/rest/v1/species?id=eq.' + op.dbId, speciesPayload(f));
   } else if (op.kind === 'patchNum') {
     await sbWrite('PATCH', '/rest/v1/species?id=eq.' + op.dbId, { capture_number: op.num });
+  } else if (op.kind === 'delete') {
+    /* The species row is the source of truth: if this DELETE fails, the
+       throw leaves the op queued and surfaces a sync error (the photo
+       cleanup below is then never attempted). */
+    await sbWrite('DELETE', '/rest/v1/species?id=eq.' + op.dbId, null);
+    if (op.photoFile) {
+      /* Best-effort photo cleanup, only after the row is gone. Any
+         failure is swallowed on purpose: an orphaned image file harms
+         nothing, and it must never fail the op or raise a sync error. */
+      try {
+        if (await sbEnsureToken()) {
+          await fetchT(SB_URL + '/storage/v1/object/species-images',
+            { method: 'DELETE', headers: sbHeaders(session.access_token), body: JSON.stringify({ prefixes: [op.photoFile] }) }, 20000);
+        }
+      } catch (e) { /* orphaned photo file: harmless */ }
+    }
   }
 }
 function mayAutoSync() {
@@ -420,7 +477,10 @@ async function processOutbox(force) {
 async function refreshDataset() {
   const live = await fetchLiveDataset();
   const unsynced = state.fish.filter((f) => f.status === 'caught' && !f.dbId && String(f.id).indexOf('local-') === 0);
-  state.fish = live.fish.concat(unsynced);
+  /* A fish whose deletion is still queued must not resurrect from the
+     live copy while its delete waits to sync. */
+  const pendingDeletes = new Set(state.outbox.filter((o) => o.kind === 'delete').map((o) => o.dbId));
+  state.fish = live.fish.filter((f) => !pendingDeletes.has(f.dbId)).concat(unsynced);
   state.dataSource = 'live';
 }
 
@@ -791,7 +851,21 @@ function adminHTML() {
     '<button type="button" class="btn small ghost" id="cropSkip">' + esc(t('skip_crop')) + '</button></div>' +
     '<div id="photoPreview" style="margin-top:10px"></div>' +
     '<button class="btn" type="submit" id="saveBtn">' + esc(t('save')) + '</button> ' +
-    '<button class="btn ghost" type="button" id="cancelEdit" hidden>' + esc(t('cancel_edit')) + '</button></form></div>' +
+    '<button class="btn ghost" type="button" id="cancelEdit" hidden>' + esc(t('cancel_edit')) + '</button>' +
+    /* Danger zone: only revealed when an existing caught fish is loaded
+       for editing (wireAdmin toggles #deleteZone). Visually separated
+       from Save, and the delete itself needs the typed-number safety. */
+    '<div class="danger-zone" id="deleteZone" hidden>' +
+    '<button class="btn danger-outline" type="button" id="deleteFishBtn">' + esc(t('del_btn')) + '</button>' +
+    '<div class="danger-box" id="deleteConfirm" hidden>' +
+    '<p style="margin:0 0 6px"><b>' + esc(t('del_intro')) + '</b></p>' +
+    '<p style="margin:0 0 6px" id="deleteFishName"></p>' +
+    '<p class="small" style="margin:0">' + esc(t('del_consequence')) + '</p>' +
+    '<label for="deleteCode">' + esc(t('del_type_label')) + '</label>' +
+    '<input id="deleteCode" inputmode="numeric" autocomplete="off" style="max-width:160px">' +
+    '<button class="btn danger" type="button" id="deleteFinalBtn" disabled>' + esc(t('del_final')) + '</button> ' +
+    '<button class="btn ghost" type="button" id="deleteCancelBtn">' + esc(t('del_cancel')) + '</button>' +
+    '</div></div></form></div>' +
     '<div class="panel"><h3>' + esc(t('data_source')) + '</h3><p>' + esc(t(state.dataSource === 'live' ? 'source_live' : state.dataSource === 'bundled' ? 'source_bundled' : 'source_cache')) + '</p>' +
     '<button class="btn ghost" id="refreshBtn">' + esc(t('refresh_btn')) + '</button></div>';
 }
@@ -908,13 +982,40 @@ function wireAdmin() {
   const editSel = $('#editSelect');
   editSel.addEventListener('change', () => {
     const f = state.fish.find((x) => x.id === editSel.value);
-    if (!f) { editId = null; $('#numRow').hidden = true; $('#cancelEdit').hidden = true; return; }
+    if (!f) { editId = null; $('#numRow').hidden = true; $('#cancelEdit').hidden = true; $('#deleteZone').hidden = true; return; }
     editId = f.id; transferFromId = null; fillForm(f);
     $('#af_gallery').value = f.gallery; $('#af_gallery').disabled = true;
     $('#af_num').value = f.num; $('#numRow').hidden = false; $('#cancelEdit').hidden = false;
     $('#formTitle').textContent = t('edit_title') + ' — #' + f.num + ' ' + primaryName(f);
+    /* Reveal the delete danger zone for this fish, with its confirmation
+       block reset (hidden, code cleared, final button disarmed). */
+    $('#deleteZone').hidden = false;
+    $('#deleteConfirm').hidden = true;
+    $('#deleteCode').value = ''; $('#deleteFinalBtn').disabled = true;
+    $('#deleteFishName').innerHTML = '<b>#' + f.num + '</b> — ' + esc(f.name_fr || '') + ' / ' + esc(f.name_en || '') + ' <i>(' + esc(f.scientific) + ')</i>';
   });
   $('#cancelEdit').addEventListener('click', () => { editId = null; render(); });
+  /* Protected delete: step 1 reveals the confirmation block; step 2 is
+     the final button, which stays disabled until the typed number
+     exactly matches the fish being edited (deleteCodeMatches). */
+  const deleteCodeInput = $('#deleteCode'), deleteFinalBtn = $('#deleteFinalBtn'), deleteConfirmBox = $('#deleteConfirm');
+  $('#deleteFishBtn').addEventListener('click', () => {
+    deleteConfirmBox.hidden = false; deleteCodeInput.value = ''; deleteFinalBtn.disabled = true;
+    deleteCodeInput.focus();
+  });
+  $('#deleteCancelBtn').addEventListener('click', () => {
+    deleteConfirmBox.hidden = true; deleteCodeInput.value = ''; deleteFinalBtn.disabled = true;
+  });
+  deleteCodeInput.addEventListener('input', () => {
+    const f = state.fish.find((x) => x.id === editId);
+    deleteFinalBtn.disabled = !(f && deleteCodeMatches(f, deleteCodeInput.value));
+  });
+  deleteFinalBtn.addEventListener('click', () => {
+    const f = state.fish.find((x) => x.id === editId);
+    if (!f || !deleteCodeMatches(f, deleteCodeInput.value)) return; // safety re-checked at click time
+    deleteCaughtFish(f);
+    editId = null; render(); adminMsg(esc(t('deleted_msg')), true);
+  });
   wireCrop();
   $('#fishForm').addEventListener('submit', (e) => {
     e.preventDefault();
