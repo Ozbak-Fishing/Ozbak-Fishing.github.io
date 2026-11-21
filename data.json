@@ -15,7 +15,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758069477879-r01ardmz21s.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/166438854",
    "status": "caught"
   },
   {
@@ -32,7 +32,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758088531413-1zjnth6ui5.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/166440555",
    "status": "caught"
   },
   {
@@ -49,7 +49,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758088846544-3gixjg40c7e.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/155549910",
    "status": "caught"
   },
   {
@@ -66,7 +66,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758089155795-agmx7o9gcq7.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/155551239",
    "status": "caught"
   },
   {
@@ -83,7 +83,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758089167479-6sgsmcjelju.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/155550972",
    "status": "caught"
   },
   {
@@ -100,7 +100,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758089178284-xgx4ky28pel.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/155551121",
    "status": "caught"
   },
   {
@@ -117,7 +117,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758089189173-co5agsdwbo6.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/166862475",
    "status": "caught"
   },
   {
@@ -134,7 +134,7 @@
    "local_name": null,
    "notes": "Anciennement: Acipenser fulvescens",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758154609814-47kz5z76iv9.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/155553170",
    "status": "caught"
   },
   {
@@ -151,7 +151,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758154618970-ppq5bp9qse.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/155553552",
    "status": "caught"
   },
   {
@@ -168,7 +168,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758154631290-y6dpr26brz8.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/166863996",
    "status": "caught"
   },
   {
@@ -185,7 +185,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758154641993-sdf1578wrx.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/155554315",
    "status": "caught"
   },
   {
@@ -202,7 +202,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758154656706-evh6dxlyjt.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/155555693",
    "status": "caught"
   },
   {
@@ -219,7 +219,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758154667545-itorfay2lct.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/167302191",
    "status": "caught"
   },
   {
@@ -236,7 +236,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758154675757-9tx7o67ryvu.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/167803324",
    "status": "caught"
   },
   {
@@ -253,7 +253,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758154685527-w92h72oa1hh.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/167805496",
    "status": "caught"
   },
   {
@@ -270,7 +270,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155305046-rsuv6j5e8fm.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/169677859",
    "status": "caught"
   },
   {
@@ -287,7 +287,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155314546-23fzl4dj568.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/169680032",
    "status": "caught"
   },
   {
@@ -304,7 +304,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155322736-264rrfco1ar.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/170326202",
    "status": "caught"
   },
   {
@@ -321,7 +321,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155332051-qt99hrehqkc.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/170968755",
    "status": "caught"
   },
   {
@@ -338,7 +338,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155345685-nbwcx3zccp.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/170968756",
    "status": "caught"
   },
   {
@@ -355,7 +355,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155355708-27v4yg4r71b.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/174538466",
    "status": "caught"
   },
   {
@@ -372,7 +372,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155367080-pm6p7gymxu.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/175855812",
    "status": "caught"
   },
   {
@@ -389,7 +389,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155377473-4dzbgenwvxw.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/175858894",
    "status": "caught"
   },
   {
@@ -406,7 +406,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155385770-r9e7m4br82l.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/180469223",
    "status": "caught"
   },
   {
@@ -423,7 +423,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155394574-q5b8f8dafil.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/181818444",
    "status": "caught"
   },
   {
@@ -440,7 +440,7 @@
    "local_name": null,
    "notes": "Première fois au Vermont sur le lac Champlain et ceci grâce a Claude Binette un gros merci a lui pour cette séance de pêche. 🙂\nBien content d'ajouter le Touladi a ma liste de capture.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155402432-p7n5oq5g3.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/207468112",
    "status": "caught"
   },
   {
@@ -457,7 +457,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156118450-xypz0syo2n.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/210224734",
    "status": "caught"
   },
   {
@@ -474,7 +474,7 @@
    "local_name": null,
    "notes": "J’avais contacter Alexis Desmarais plus tôt dans la journée pour des conseils sur la Marigane noir que je n’avais pas réussis a prendre. A force de discuter avec Alexis Il nous a proposé à mon frère et moi de nous aider à prendre l’umbre de vase ainsi que l'épinoche à cinq épines.\nIls nous a donné rdv et il nous a vraiment bien aidé pour la capture de ces deux nouvelles espèces. 🙂",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156128772-7x4bemfsrqk.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/210227580",
    "status": "caught"
   },
   {
@@ -491,7 +491,7 @@
    "local_name": null,
    "notes": "Troisième nouvelle espèces de la journée,  encore merci a toi Alexis Desmarais pour ces captures. J’ai atteint la barre des 30 espèces !!",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156138029-o8md7q7lbol.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/210227582",
    "status": "caught"
   },
   {
@@ -508,7 +508,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156147415-s23n5pwfdb.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/217363067",
    "status": "caught"
   },
   {
@@ -525,7 +525,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156159679-8of553k67r6.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/217917710",
    "status": "caught"
   },
   {
@@ -542,7 +542,7 @@
    "local_name": null,
    "notes": "Anciennement: Notropis volucellus",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156170387-8tfvkdnegga.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/217917711",
    "status": "caught"
   },
   {
@@ -559,7 +559,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156181357-s0c4v97x3ok.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/217917713",
    "status": "caught"
   },
   {
@@ -576,7 +576,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156192482-0e806oj0l4qs.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/270752699",
    "status": "caught"
   },
   {
@@ -593,7 +593,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156204442-dy18kgezvlw.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/270753464",
    "status": "caught"
   },
   {
@@ -610,7 +610,7 @@
    "local_name": null,
    "notes": "Pêche a la ligne morte sur le quai du Parc Bellerive a Montréal, je m'attendais pas a sortir un petit bar ici",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156376267-872arw7se1a.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/270948763",
    "status": "caught"
   },
   {
@@ -627,7 +627,7 @@
    "local_name": null,
    "notes": "Ce n’était pas un monstre, loin de là — un petit spécimen, mais suffisant pour valider l’espèce dans ma lifelist. Un combat rapide mais satisfaisant, surtout après l’avoir longtemps cherché. L’achigan à grande bouche est un incontournable en Amérique du Nord, et je suis content d’avoir enfin pu cocher cette espèce, même en version mini. Prochaine étape : en trouver un plus gros ! ",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156388022-wx71dgwj0h.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/293003404",
    "status": "caught"
   },
   {
@@ -644,7 +644,7 @@
    "local_name": null,
    "notes": "Une capture symbolique pour moi : mon tout premier musky \nConnu comme le \"poisson des 10 000 lancers\", le maskinongé est réputé pour sa rareté et sa méfiance.\nC’était une journée grise et pluvieuse, pas forcément idéale pour pêcher, mais parfaite pour ce type de rencontre inattendue. Et quelle rencontre ! Depuis mes débuts en lifelisting, le maskinongé occupait la 1re place de ma liste de rêves à réaliser au Québec. C’est un poisson emblématique, un prédateur majestueux, qui me faisait fantasmer depuis longtemps.\nUn immense merci à Darian Savage, sans qui cette rencontre n’aurait pas été possible. Grâce à ses conseils et son aide sur le terrain, j’ai pu cocher une espèce mythique de ma lifelist. Une belle preuve que les bons partenaires de pêche font toute la différence. ",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156398939-wjnfh825dkh.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/296261638",
    "status": "caught"
   },
   {
@@ -661,7 +661,7 @@
    "local_name": null,
    "notes": "Enfin ! L’un des grands classiques de nos eaux québécoises rejoint ma lifelist. Ce redoutable prédateur, réputé pour sa puissance et ses attaques éclairs, m’a offert un combat court mais intense.\n\nUne espèce emblématique qu’il me tardait d’ajouter, et qui marque une belle étape vers mon objectif des 50 espèces d’ici la fin de l’année.\n\nCe brochet a été capturé pendant un petit road trip sur la rivière Richelieu — un cours d’eau que j’affectionne tout particulièrement pour sa richesse et sa diversité.\nUn moment spécial, capturé dans des conditions parfaites… et surtout partagé avec mon frère, ce qui rend cette prise encore plus mémorable.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758156412742-tbli64c82j.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/301022687",
    "status": "caught"
   },
   {
@@ -678,7 +678,7 @@
    "local_name": null,
    "notes": "En pleine soirée de road trip, nous sommes arrivés assez tard au quai de Tadoussac, mon frère et moi, pour une courte séance de pêche improvisée. À peine quelques minutes après avoir lancé ma ligne au pied du quai, j’ai senti une toute petite touche. En ramenant délicatement, j’ai sorti un minuscule poisson qui m’était totalement inconnu : mon tout premier Ulvaire à deux lignes. Une belle surprise inattendue, découverte par hasard dans ce décor unique.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758158461338-b4lm2d8jn4.png",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/313025896",
    "status": "caught"
   },
   {
@@ -695,7 +695,7 @@
    "local_name": null,
    "notes": "Le lendemain de ma découverte de l’Ulvaire à deux lignes, nous sommes retournés au quai de Tadoussac pour profiter d’une belle journée de pêche. L’ambiance était tranquille, idéale pour continuer nos essais du bord. Et c’est là que j’ai eu la chance d’ajouter une nouvelle espèce à ma lifelist : le Tricorne arctique, un poisson caractéristique de la région, venu compléter cette sortie réussie.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758158474650-dnrln3hmsvh.png",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/313025899",
    "status": "caught"
   },
   {
@@ -712,7 +712,7 @@
    "local_name": null,
    "notes": "Quelques jours plus tard, tout près des Escoumins, une autre surprise m’attendait. En pêchant calmement du bord, j’ai ferré un petit poisson au profil inconnu pour moi. Après observation, il s’est révélé être un Stichée arctique, une belle découverte inattendue qui est venue enrichir ma lifelist d’une espèce de plus.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758158486940-2gk3wc0rlba.png",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/313027787",
    "status": "caught"
   },
   {
@@ -729,7 +729,7 @@
    "local_name": null,
    "notes": "Première journée à Eastport, sur le breakwater pier. En pêchant du bord, j'ai sorti ce petit poisson qui ne ressemblait à rien de ce que je connaissais. Après vérification avec le groupe, verdict : une goberge, mon premier pollock. Une belle entrée en matière pour le trip, et l'espèce #43 de ma lifelist.\n\nUn gros merci à Alexis Desmarais, Matthieu Lavallée et Drew FishBruh pour les identifications et les bons moments partagés.\n\nAutre nom en français : Lieu noir",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1791949641676-vxoe0nmhc3.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/408154177",
    "status": "caught"
   },
   {
@@ -746,7 +746,7 @@
    "local_name": null,
    "notes": "Toujours cette première journée sur le breakwater, j'ai ensuite ferré ce chaboisseau à la tête massive et aux longues épines. Un longhorn sculpin, une vraie petite bête des fonds rocheux, aussi impressionnant que rugueux. Deuxième espèce de la journée et #44 de ma lifelist.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1791949946204-kfkuqwdc7qo.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/408154178",
    "status": "caught"
   },
   {
@@ -763,7 +763,7 @@
    "local_name": null,
    "notes": "Le moment fort de la journée, ce poisson plat sorti du bord. Un flétan de l'Atlantique un de mes rêve de pêcheur ! Prendre un halibut du bord, même jeune, c'est quelque chose. Espèce #45, et sans doute ma prise la plus impressionnante du trip.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1791950050504-fu2mb2dq6gi.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/408154179",
    "status": "caught"
   },
   {
@@ -780,7 +780,7 @@
    "local_name": null,
    "notes": "Deuxième chaboisseau du trip, mais celui-ci avec des épines plus courtes : le shorthorn sculpin. Après le longhorn du matin, voici son cousin au profil un peu moins hérissé mais tout aussi costaud. Espèce #46, les chaboisseaux étaient clairement au rendez-vous à Eastport.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1791950216190-zn7hj37zjzo.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/408154181",
    "status": "caught"
   },
   {
@@ -797,7 +797,7 @@
    "local_name": null,
    "notes": "Sur le même secteur d'Eastport, j'ai ensuite sorti un autre poisson plat, plus petit et au corps bien ovale : une plie rouge. La winter flounder, une habituée des fonds côtiers. Avec le flétan de plus tôt, ça faisait deux espèces de poissons plats dans la même journée.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1791950322738-h7in3flkaj5.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/408154185",
    "status": "caught"
   },
   {
@@ -814,7 +814,7 @@
    "local_name": null,
    "notes": "Sixième nouvelle prise du jour, et pas des moindres, ce poisson élancé à la grande bouche, sans barbillon au menton un merlu argenté, le fameux silver hake entendu sur place",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1791950441774-sp4961vzou.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/408154190",
    "status": "caught"
   },
   {
@@ -831,7 +831,7 @@
    "local_name": null,
    "notes": "Pour clore cette première journée de folie, une merluche écureuil - la red hake, avec son petit barbillon caractéristique. Septième et dernière nouvelle espèce de la journée. Quel beau début de trip.\n\nJe referme cette journée en remerciant Alexis Desmarais, Matthieu Lavallée et Drew FishBruh pour leur aide précieuse et leur bonne humeur au bord de l'eau.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1791950530989-0pfnbx1cm1aa.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/408154191",
    "status": "caught"
   },
   {
@@ -848,7 +848,7 @@
    "local_name": null,
    "notes": "Deuxième jour à Eastport, et une prise qui ne ressemble à aucune autre la lompe. Ronde comme un ballon avec sa ventouse ventrale, aussi drôle qu'inattendue. Et avec elle, la barre symbolique des 50 espèces franchie.\n\nMerci à Alexis Desmarais, Matthieu Lavallée et Darian Savage pour la recherche de la lompe.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1791950669879-z8r7tdvqm2g.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/408154405",
    "status": "caught"
   },
   {
@@ -865,7 +865,7 @@
    "local_name": null,
    "notes": "Sur le chemin du retour, encore une surprise, bien différent de nos grands brochets habituels. Un brochet maillé, le chain pickerel ! Une dernière nouvelle espèce pour la route, et la #51 de ma lifelist. Le trip s'est terminé comme il avait commencé en beauté.\n\nUn immense merci à tout le groupe pour ce week-end incroyable : Alexis Desmarais, Matthieu Lavallée, Drew FishBruh et Darian Savage. Pour les identifications, les conseils et ces 9 nouvelles espèces qui n'auraient pas été possibles sans vous.",
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1791949566196-j9fzmtcdgg.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/408154849",
    "status": "caught"
   }
  ],
@@ -884,7 +884,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155615446-bgl6fozgmvq.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/167302192",
    "status": "caught"
   },
   {
@@ -901,7 +901,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155509853-5vzvc686985.jpg",
-   "inaturalist": null,
+   "inaturalist": "https://www.inaturalist.org/observations/170968757",
    "status": "caught"
   }
  ],
