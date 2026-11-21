@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ozbak — Lifelist</title>
+<meta name="description" content="Ozbak's fishing lifelist: every species, micro to monster, caught on a line.">
+<meta name="theme-color" content="#004393">
+<link rel="icon" href="ozbak-logo.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#" data-nav="home">
+    <img src="ozbak-logo.png" alt="Ozbak logo">
+    <span>OZBAK</span>
+  </a>
+  <button class="burger" id="burger" aria-label="Menu">☰</button>
+  <nav class="mainnav" id="mainnav">
+    <a href="#" data-nav="home" data-i18n="nav_home">Home</a>
+    <a href="#" data-nav="main" data-i18n="nav_main">Main species</a>
+    <a href="#" data-nav="subspecies" data-i18n="nav_sub">Subspecies</a>
+    <a href="#" data-nav="hybrids" data-i18n="nav_hyb">Hybrids</a>
+    <a href="#" data-nav="missing" data-i18n="nav_missing">Missing QC</a>
+    <a href="#" data-nav="admin" data-i18n="nav_admin">Admin</a>
+    <button id="langToggle" class="langbtn" title="Switch language / Changer de langue">FR</button>
+  </nav>
+</header>
+
+<main id="view"></main>
+
+<div id="popup" class="popup-backdrop" hidden>
+  <div class="popup" role="dialog" aria-modal="true">
+    <button class="popup-close" id="popupClose" aria-label="Close">✕</button>
+    <div id="popupContent"></div>
+  </div>
+</div>
+
+<footer class="footer">
+  <span data-i18n="footer_text">Ozbak — Lifelist · Catch &amp; release · V1 prototype (local data)</span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
