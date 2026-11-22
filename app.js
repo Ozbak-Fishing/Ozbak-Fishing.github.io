@@ -656,34 +656,49 @@ function carCardHTML(f) {
 }
 function carouselHTML(cardsHtml) {
   const set = '<div class="car-set">' + cardsHtml + '</div>';
-  return '<div class="carousel">' + set + set + set + '</div>';
+  return '<div class="carousel"><div class="car-track">' + set + set + set + '</div></div>';
 }
+/* Transform-driven strip (v2): the track is moved directly, so the loop is
+   truly endless, the drag works the same with mouse and touch, and the
+   auto-scroll always resumes 3 s after the pointer is released. The v1
+   native-scroll version hit the container's end after 2-3 loops, never
+   resumed after touch (pointercancel), and could not be mouse-dragged. */
 function initCarousels(root) {
   stopCarousels();
-  const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   root.querySelectorAll('.carousel').forEach((el) => {
-    const set = el.querySelector('.car-set'); if (!set) return;
+    const track = el.querySelector('.car-track'); if (!track) return;
+    const set = track.querySelector('.car-set'); if (!set) return;
     const copyW = set.offsetWidth; if (!copyW) return;
-    el.scrollLeft = copyW;
-    let paused = false, resumeAt = 0, raf = 0, last = 0, downX = null, moved = false;
+    let off = -copyW, raf = 0, last = 0, dragging = false, resumeAt = 0, startX = 0, startOff = 0, moved = false;
+    const apply = () => { track.style.transform = 'translateX(' + off + 'px)'; };
+    const norm = () => { off = -((((-off) % copyW) + copyW) % copyW); };
+    apply();
     const step = (ts) => {
       raf = requestAnimationFrame(step);
       if (!last) last = ts;
       const dt = Math.min(64, ts - last); last = ts;
-      if (reduce || paused || document.hidden) return;
+      if (dragging || document.hidden) return;
       if (resumeAt && ts < resumeAt) return;
-      el.scrollLeft -= 0.024 * dt; /* ~24 px/s, content drifts left -> right */
-      if (el.scrollLeft <= 0) el.scrollLeft += copyW;
-      else if (el.scrollLeft >= copyW * 2) el.scrollLeft -= copyW;
+      off += 0.024 * dt; /* ~24 px/s, content drifts left -> right */
+      if (off >= 0) off -= copyW;
+      apply();
     };
     raf = requestAnimationFrame(step);
-    const release = () => { paused = false; resumeAt = performance.now() + 3000; };
-    el.addEventListener('pointerdown', (e) => { paused = true; downX = e.clientX; moved = false; });
-    el.addEventListener('pointermove', (e) => { if (downX !== null && Math.abs(e.clientX - downX) > 8) moved = true; });
-    window.addEventListener('pointerup', release);
-    el.addEventListener('wheel', () => { paused = true; release(); }, { passive: true });
+    el.addEventListener('pointerdown', (e) => {
+      dragging = true; moved = false; startX = e.clientX; startOff = off;
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 8) moved = true;
+      off = startOff + dx; norm(); apply();
+    });
+    const end = () => { if (dragging) { dragging = false; resumeAt = performance.now() + 3000; } };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
     el.addEventListener('click', (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } }, true);
-    carouselCleanups.push(() => { cancelAnimationFrame(raf); window.removeEventListener('pointerup', release); });
+    carouselCleanups.push(() => cancelAnimationFrame(raf));
   });
 }
 /* ----- priority quests: the owner's star toggle (admin, option B) ----- */

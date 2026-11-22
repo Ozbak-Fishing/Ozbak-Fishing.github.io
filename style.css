@@ -196,8 +196,9 @@ textarea{min-height:74px;resize:vertical}
 .small{font-size:.86rem;color:var(--muted)}
 
 /* ----- home carousels (Latest catches + Priority quests) ----- */
-.carousel{overflow-x:auto;overflow-y:hidden;display:flex;scrollbar-width:none;-ms-overflow-style:none;margin-top:16px;border-radius:14px}
-.carousel::-webkit-scrollbar{display:none}
+.carousel{overflow:hidden;margin-top:16px;border-radius:14px;touch-action:pan-y;cursor:grab}
+.carousel:active{cursor:grabbing}
+.car-track{display:flex;width:max-content;will-change:transform}
 .car-set{display:flex;gap:10px;padding-right:10px;flex:0 0 auto}
 .car-card{flex:0 0 auto;width:158px;padding:0;border:1px solid var(--border,#d8dee6);border-radius:14px;background:var(--card,#fff);overflow:hidden;text-align:left;cursor:pointer;font:inherit}
 .car-ph{position:relative;display:block;height:104px;background:var(--blue-pale);overflow:hidden}
