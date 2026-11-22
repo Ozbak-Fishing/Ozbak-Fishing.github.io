@@ -35,6 +35,8 @@ const T = {
     follow: 'Follow me',
     qr_caption: 'Scan to see my lifelist',
     galleries: 'Galleries', latest_title: 'Latest catches',
+    prio_title: '★ Priority quests', prio_add: '☆ Make priority', prio_remove: '★ Remove from priorities',
+    prio_full: 'You already have 5 priority quests — remove one first.',
     stats: 'Statistics',
     stat_year: 'By year', stat_place: 'By country / place', stat_water: 'Freshwater vs Saltwater', stat_family: 'By family',
     search_ph: 'Search a species…',
@@ -108,6 +110,8 @@ const T = {
     follow: 'Suivez-moi',
     qr_caption: 'Scanne pour voir ma lifelist',
     galleries: 'Galeries', latest_title: 'Dernières prises',
+    prio_title: '★ Quêtes prioritaires', prio_add: '☆ Mettre en prioritaire', prio_remove: '★ Retirer des prioritaires',
+    prio_full: 'Tu as déjà 5 quêtes prioritaires — retire-en une d\'abord.',
     stats: 'Statistiques',
     stat_year: 'Par année', stat_place: 'Par pays / lieu', stat_water: 'Eau douce vs eau salée', stat_family: 'Par famille',
     search_ph: 'Rechercher une espèce…',
@@ -447,6 +451,8 @@ async function executeOp(op) {
     const f = Object.assign({}, op.fish);
     if (op.photoDataUrl) f.photo = await uploadPhoto(op.photoDataUrl);
     await sbWrite('PATCH', '/rest/v1/species?id=eq.' + op.dbId, speciesPayload(f));
+  } else if (op.kind === 'priority') {
+    await sbWrite('PATCH', '/rest/v1/missing_species?id=eq.' + op.dbId, { is_priority: op.value });
   } else if (op.kind === 'patchNum') {
     await sbWrite('PATCH', '/rest/v1/species?id=eq.' + op.dbId, { capture_number: op.num });
   } else if (op.kind === 'delete') {
@@ -606,9 +612,10 @@ function updateAdminBadge() {
   b.textContent = n > 0 ? String(n) : '';
 }
 function render() {
+  stopCarousels();
   applyStaticI18n(); setActiveNav(); updateAdminBadge();
   const v = $('#view');
-  if (route.name === 'home') { v.innerHTML = homeHTML(); v.querySelectorAll('[data-fish]').forEach((el) => el.addEventListener('click', () => openPopup(el.getAttribute('data-fish')))); }
+  if (route.name === 'home') { v.innerHTML = homeHTML(); v.querySelectorAll('[data-fish]').forEach((el) => el.addEventListener('click', () => openPopup(el.getAttribute('data-fish')))); initCarousels(v); }
   else if (route.name === 'gallery') { v.innerHTML = galleryHTML(route.gallery); wireGallery(route.gallery); }
   else if (route.name === 'admin') { v.innerHTML = adminHTML(); wireAdmin(); }
   window.scrollTo(0, 0);
@@ -638,10 +645,62 @@ function statsHTML() {
     statBox(t('stat_water'), group((f) => (f.category === 'Freshwater' || f.category === 'Saltwater') ? f.category : '')) +
     statBox(t('stat_family'), group((f) => f.family)) + '</div>';
 }
+/* ----- home carousels: slow continuous loop, manual drag, tap = fiche ----- */
+let carouselCleanups = [];
+function stopCarousels() { carouselCleanups.forEach((fn) => { try { fn(); } catch (e) {} }); carouselCleanups = []; }
+function carCardHTML(f) {
+  const badge = f.status === 'missing' ? ('★ #' + esc(f.quest)) : ('#' + f.num);
+  const sub = f.status === 'missing' ? f.scientific : (f.date || '');
+  return '<button class="car-card" data-fish="' + f.id + '"><span class="car-ph">' + photoHTML(f) + '<span class="badge">' + badge + '</span></span>' +
+    '<span class="car-body"><span class="primary">' + esc(primaryName(f)) + '</span><span class="car-sub">' + esc(sub || '') + '</span></span></button>';
+}
+function carouselHTML(cardsHtml) {
+  const set = '<div class="car-set">' + cardsHtml + '</div>';
+  return '<div class="carousel">' + set + set + set + '</div>';
+}
+function initCarousels(root) {
+  stopCarousels();
+  const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  root.querySelectorAll('.carousel').forEach((el) => {
+    const set = el.querySelector('.car-set'); if (!set) return;
+    const copyW = set.offsetWidth; if (!copyW) return;
+    el.scrollLeft = copyW;
+    let paused = false, resumeAt = 0, raf = 0, last = 0, downX = null, moved = false;
+    const step = (ts) => {
+      raf = requestAnimationFrame(step);
+      if (!last) last = ts;
+      const dt = Math.min(64, ts - last); last = ts;
+      if (reduce || paused || document.hidden) return;
+      if (resumeAt && ts < resumeAt) return;
+      el.scrollLeft -= 0.024 * dt; /* ~24 px/s, content drifts left -> right */
+      if (el.scrollLeft <= 0) el.scrollLeft += copyW;
+      else if (el.scrollLeft >= copyW * 2) el.scrollLeft -= copyW;
+    };
+    raf = requestAnimationFrame(step);
+    const release = () => { paused = false; resumeAt = performance.now() + 3000; };
+    el.addEventListener('pointerdown', (e) => { paused = true; downX = e.clientX; moved = false; });
+    el.addEventListener('pointermove', (e) => { if (downX !== null && Math.abs(e.clientX - downX) > 8) moved = true; });
+    window.addEventListener('pointerup', release);
+    el.addEventListener('wheel', () => { paused = true; release(); }, { passive: true });
+    el.addEventListener('click', (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } }, true);
+    carouselCleanups.push(() => { cancelAnimationFrame(raf); window.removeEventListener('pointerup', release); });
+  });
+}
+/* ----- priority quests: the owner's star toggle (admin, option B) ----- */
+function togglePriority(f) {
+  const val = !f.priority;
+  if (val && state.fish.filter((x) => x.status === 'missing' && x.priority).length >= 5) { alert(t('prio_full')); return; }
+  f.priority = val;
+  state.outbox.push({ kind: 'priority', dbId: f.dbId, value: val });
+  saveState(); updateAdminBadge(); processOutbox(false);
+  closePopup(); render();
+}
 function homeHTML() {
   const cM = caught('main').length, cS = caught('subspecies').length, cH = caught('hybrids').length, cQ = missingAll().length;
   const latest = state.fish.filter((f) => f.status === 'caught').slice()
-    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || ((b.num || 0) - (a.num || 0))).slice(0, 3);
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || ((b.num || 0) - (a.num || 0))).slice(0, 5);
+  const prios = missingAll().filter((f) => f.priority)
+    .sort((a, b) => (parseInt(a.quest, 10) || 999) - (parseInt(b.quest, 10) || 999));
   return '<section class="hero"><img class="logo" src="ozbak-logo.png" alt="Ozbak logo">' +
     '<h1>' + esc(t('hero_title')) + '</h1><p>' + esc(t('hero_intro')) + '</p>' +
     '<div class="pills">' +
@@ -655,8 +714,10 @@ function homeHTML() {
     '<p class="qr-caption">' + esc(t('qr_caption')) + '</p>' +
     '<p class="qr-url">https://ozbak-fishing.github.io/</p></div></section>' +
     '<section class="section"><h2>' + esc(t('what_title')) + '</h2><p class="lead">' + esc(t('what_text')) + '</p></section>' +
-    '<section class="section"><h2>' + esc(t('latest_title')) + '</h2><div class="grid">' +
-    latest.map((f) => cardHTML(f, f.gallery)).join('') + '</div></section>' +
+    '<section class="section"><h2>' + esc(t('latest_title')) + '</h2>' +
+    carouselHTML(latest.map((f) => carCardHTML(f)).join('')) + '</section>' +
+    (prios.length ? '<section class="section"><h2>' + esc(t('prio_title')) + '</h2>' +
+      carouselHTML(prios.map((f) => carCardHTML(f)).join('')) + '</section>' : '') +
     '<section class="section"><h2>' + esc(t('stats')) + '</h2>' + statsHTML() + '</section>';
 }
 
@@ -861,10 +922,12 @@ function openPopup(id) {
     '</div></div>' +
     (f.notes ? '<h3 style="margin-top:16px">' + esc(t('notes')) + '</h3><p class="notes">' + esc(f.notes) + '</p>' : '') +
     '<button class="share-btn" id="shareBtn">↗ ' + esc(t('share')) + '</button>' +
-    (isMissing ? '' : '<button class="share-btn" id="cardBtn" style="margin-left:8px">🃏 ' + esc(t('card_btn')) + '</button>');
+    (isMissing ? '' : '<button class="share-btn" id="cardBtn" style="margin-left:8px">🃏 ' + esc(t('card_btn')) + '</button>') +
+    (isMissing && adminUnlocked && f.dbId ? '<button class="share-btn" id="prioBtn" style="margin-left:8px">' + esc(f.priority ? t('prio_remove') : t('prio_add')) + '</button>' : '');
   $('#popup').hidden = false;
   $('#shareBtn').addEventListener('click', () => shareFish(f));
   const cb = $('#cardBtn'); if (cb) cb.addEventListener('click', () => makeCard(f));
+  const pb = $('#prioBtn'); if (pb) pb.addEventListener('click', () => togglePriority(f));
 }
 function closePopup() { $('#popup').hidden = true; }
 /* ----- QR code to the public site (shown in person, e.g. while travelling) ----- */

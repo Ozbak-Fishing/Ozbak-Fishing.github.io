@@ -5,7 +5,7 @@
    cache.) Photos hosted on Supabase Storage are cached on first view
    (separate photo cache, kept across shell versions) so galleries remain
    fully visible offline. Bump CACHE whenever the shell changes materially. */
-const CACHE = 'ozbak-v15';
+const CACHE = 'ozbak-v16';
 const PHOTOS = 'ozbak-photos';
 const SHELL = ['./', './index.html', './style.css', './app.js', './data.json', './ozbak-logo.png', './manifest.json', './qr-site.svg'];
 const PHOTO_HOST = 'dapfearinbupdsuglrcs.supabase.co';

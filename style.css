@@ -194,3 +194,17 @@ textarea{min-height:74px;resize:vertical}
 .pending-item{display:flex;justify-content:space-between;gap:10px;align-items:center;
   border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-top:8px;flex-wrap:wrap}
 .small{font-size:.86rem;color:var(--muted)}
+
+/* ----- home carousels (Latest catches + Priority quests) ----- */
+.carousel{overflow-x:auto;overflow-y:hidden;display:flex;scrollbar-width:none;-ms-overflow-style:none;margin-top:16px;border-radius:14px}
+.carousel::-webkit-scrollbar{display:none}
+.car-set{display:flex;gap:10px;padding-right:10px;flex:0 0 auto}
+.car-card{flex:0 0 auto;width:158px;padding:0;border:1px solid var(--border,#d8dee6);border-radius:14px;background:var(--card,#fff);overflow:hidden;text-align:left;cursor:pointer;font:inherit}
+.car-ph{position:relative;display:block;height:104px;background:var(--blue-pale);overflow:hidden}
+.car-ph img.photo{width:100%;height:100%;object-fit:cover;display:block}
+.car-ph .placeholder{height:100%;display:flex;align-items:center;justify-content:center}
+.car-ph .placeholder img{width:52px;height:52px;object-fit:contain}
+.car-ph .placeholder .sci{display:none}
+.car-body{display:block;padding:8px 10px 10px}
+.car-body .primary{display:block;font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.car-sub{display:block;color:var(--muted,#5b6b7c);font-size:.78rem;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
