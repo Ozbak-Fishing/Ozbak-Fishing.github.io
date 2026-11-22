@@ -884,7 +884,7 @@
    "local_name": null,
    "notes": null,
    "photo": "https://dapfearinbupdsuglrcs.supabase.co/storage/v1/object/public/species-images/1758155615446-bgl6fozgmvq.jpg",
-   "inaturalist": "https://www.inaturalist.org/observations/167302192",
+   "inaturalist": "https://www.inaturalist.org/observations/167302194",
    "status": "caught"
   },
   {
@@ -1928,5 +1928,5 @@
   "hybrids": 0,
   "missing_qc": 78
  },
- "version": "2026-11-21-r8"
+ "version": "2026-11-21-r9"
 }
