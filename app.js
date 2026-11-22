@@ -834,6 +834,7 @@ function openPopup(id) {
   if (!f) return;
   const isMissing = f.status === 'missing';
   const title = isMissing ? ('#' + esc(f.quest) + ' · ' + esc(primaryName(f))) : ('#' + f.num + ' ' + esc(primaryName(f)));
+  const waterLabel = f.gallery === 'subspecies' ? (f.water || 'Freshwater') : (f.category || '—');
   const big = f.photo ? '<img class="bigphoto" src="' + f.photo + '" alt="' + esc(primaryName(f)) + '">'
     : '<div class="placeholder bigplaceholder"><img src="ozbak-logo.png" alt=""><span class="sci">' + esc(f.scientific) + '</span></div>';
   let captureRows = '';
@@ -853,7 +854,7 @@ function openPopup(id) {
     '<div><dt>' + esc(t('english')) + ':</dt><dd>' + esc(f.name_en) + '</dd></div>' +
     '<div><dt>' + esc(t('french')) + ':</dt><dd>' + esc(f.name_fr) + '</dd></div>' +
     '<div><dt>' + esc(t('family')) + ':</dt><dd>' + esc(f.family) + '</dd></div></dl>' +
-    '<h3 style="margin-top:14px">' + esc(t('water_type')) + '</h3><span class="water' + (f.category === 'Saltwater' ? ' salt' : '') + '">' + esc(f.category || '—') + '</span></div>' +
+    '<h3 style="margin-top:14px">' + esc(t('water_type')) + '</h3><span class="water' + (waterLabel === 'Saltwater' ? ' salt' : '') + '">' + esc(waterLabel) + '</span></div>' +
     '<div><h3>' + esc(t('capture')) + '</h3><dl>' + captureRows + '</dl>' +
     (f.inaturalist ? '<p><a href="' + esc(f.inaturalist) + '" target="_blank" rel="noopener">' + esc(t('inat')) + '</a></p>' : '') +
     '</div></div>' +
@@ -954,8 +955,9 @@ async function makeCard(f) {
   let dateStr = '—';
   if (f.date) { const p = f.date.split('-'); if (p.length === 3) dateStr = months[parseInt(p[1], 10) - 1] + ' ' + parseInt(p[2], 10) + ', ' + p[0]; }
   const placeStr = [f.place, f.country].filter(Boolean).join(', ') || '—';
-  const isWater = (f.category === 'Freshwater' || f.category === 'Saltwater');
-  const cells = [['DATE', dateStr], ['PLACE', placeStr], isWater ? ['WATER', f.category] : ['TYPE', f.category || '—'], ['FAMILY', f.family || '—']];
+  const wtr = f.water ? (f.water.charAt(0).toUpperCase() + f.water.slice(1)) : '';
+  const isWater = (wtr === 'Freshwater' || wtr === 'Saltwater');
+  const cells = [['DATE', dateStr], ['PLACE', placeStr], isWater ? ['WATER', wtr] : ['TYPE', f.category || '—'], ['FAMILY', f.family || '—']];
   cells.forEach((c, i) => {
     const cx = 48 + (i % 2) * ((W - 96) / 2), cy = 952 + Math.floor(i / 2) * 100;
     ctx.fillStyle = '#5A697D'; ctx.font = '700 27px Arial, sans-serif'; ctx.fillText(c[0], cx + 36, cy + 50);
@@ -1254,7 +1256,8 @@ function fillForm(f) {
   $('#af_family').value = f.family || ''; $('#af_date').value = f.date || ''; $('#af_country').value = f.country || '';
   $('#af_place').value = f.place || ''; $('#af_inat').value = f.inaturalist || ''; $('#af_notes').value = f.notes || '';
   const g = $('#af_gallery'); if (g && ['main', 'subspecies', 'hybrids'].includes(f.gallery)) g.value = f.gallery;
-  const w = $('#af_water'); if (w && f.category) [...w.options].forEach((o) => { if (o.value === f.category) w.value = f.category; });
+  const w = $('#af_water'); const wv = f.gallery === 'subspecies' ? (f.water || 'Freshwater') : f.category;
+  if (w && wv) [...w.options].forEach((o) => { if (o.value === wv) w.value = wv; });
   formPhoto = f.photo || null; showPhotoPreview();
 }
 function startTransfer(id) {
@@ -1373,6 +1376,11 @@ function wireAdmin() {
       country: $('#af_country').value.trim(), place: $('#af_place').value.trim(),
       inaturalist: $('#af_inat').value.trim(), notes: $('#af_notes').value.trim(), photo: formPhoto
     };
+    if (targetGallery === 'subspecies') {
+      // A subspecies keeps the 'Variant' display label; the chosen value is its REAL water type.
+      base.category = 'Variant';
+      base.water = waterVal === 'Variant' ? ((editTarget && editTarget.water) || 'Freshwater') : waterVal;
+    }
     if (editId) {
       const f = state.fish.find((x) => x.id === editId); if (!f) return;
       if (waterVal === 'Variant' && f.water) base.water = f.water; // keep the real water type behind the Variant label
