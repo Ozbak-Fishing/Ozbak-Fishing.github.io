@@ -25,7 +25,7 @@ let editId = null;           // fish id being edited
 /* ---------------- i18n ---------------- */
 const T = {
   en: {
-    nav_home: 'Home', nav_main: 'Main species', nav_sub: 'Subspecies', nav_hyb: 'Hybrids',
+    nav_home: 'Home', nav_main: 'Main species', nav_sub: 'Subspecies and variants', nav_hyb: 'Hybrids',
     nav_missing: 'Missing QC', nav_admin: 'Admin',
     footer_text: 'Ozbak — Lifelist · Catch & release',
     hero_title: 'Ozbak — Lifelist',
@@ -45,7 +45,7 @@ const T = {
     grid: 'Grid', list: 'List',
     identification: 'Identification', scientific: 'Scientific name', english: 'English name',
     french: 'French name', family: 'Family', water_type: 'Water type', capture: 'Capture',
-    date: 'Date', country: 'Country', place: 'Place', notes: 'Notes', share: 'Share',
+    date: 'Date', country: 'Country', place: 'Place', notes: 'Notes', share: 'Share', card_btn: 'Card', card_title: 'Your Instagram card', download: 'Download',
     inat: 'See the identification on iNaturalist (other photos)',
     quest: 'Quest', suggested_place: 'Suggested place', when: 'When',
     gal_main_d: 'My main collection of caught fish species.',
@@ -98,7 +98,7 @@ const T = {
     required: 'English, French and scientific names are required.'
   },
   fr: {
-    nav_home: 'Accueil', nav_main: 'Espèces principales', nav_sub: 'Sous-espèces', nav_hyb: 'Hybrides',
+    nav_home: 'Accueil', nav_main: 'Espèces principales', nav_sub: 'Sous-espèces et variants', nav_hyb: 'Hybrides',
     nav_missing: 'Manquants QC', nav_admin: 'Admin',
     footer_text: 'Ozbak — Lifelist · Remise à l’eau',
     hero_title: 'Ozbak — Lifelist',
@@ -118,7 +118,7 @@ const T = {
     grid: 'Grille', list: 'Liste',
     identification: 'Identification', scientific: 'Nom scientifique', english: 'Nom anglais',
     french: 'Nom français', family: 'Famille', water_type: "Type d'eau", capture: 'Capture',
-    date: 'Date', country: 'Pays', place: 'Lieu', notes: 'Notes', share: 'Partager',
+    date: 'Date', country: 'Pays', place: 'Lieu', notes: 'Notes', share: 'Partager', card_btn: 'Carte', card_title: 'Ta carte Instagram', download: 'Télécharger',
     inat: "Voir l'identification sur iNaturalist (autres photos)",
     quest: 'Quête', suggested_place: 'Lieu suggéré', when: 'Quand',
     gal_main_d: 'Ma collection principale d’espèces de poissons capturées.',
@@ -646,7 +646,7 @@ function homeHTML() {
     '<h1>' + esc(t('hero_title')) + '</h1><p>' + esc(t('hero_intro')) + '</p>' +
     '<div class="pills">' +
     '<a class="pill" href="#" data-go="main">' + cM + ' Main species</a>' +
-    '<a class="pill" href="#" data-go="subspecies">' + cS + ' Subspecies</a>' +
+    '<a class="pill" href="#" data-go="subspecies">' + cS + ' Subspecies and variants</a>' +
     '<a class="pill" href="#" data-go="hybrids">' + cH + ' Hybrids</a>' +
     '<a class="pill secondary" href="#" data-go="missing">' + cQ + ' Missing QC</a></div>' +
     '<div class="socials"><span style="align-self:center;font-weight:700;color:var(--blue)">' + esc(t('follow')) + ' :</span>' +
@@ -858,9 +858,11 @@ function openPopup(id) {
     (f.inaturalist ? '<p><a href="' + esc(f.inaturalist) + '" target="_blank" rel="noopener">' + esc(t('inat')) + '</a></p>' : '') +
     '</div></div>' +
     (f.notes ? '<h3 style="margin-top:16px">' + esc(t('notes')) + '</h3><p class="notes">' + esc(f.notes) + '</p>' : '') +
-    '<button class="share-btn" id="shareBtn">↗ ' + esc(t('share')) + '</button>';
+    '<button class="share-btn" id="shareBtn">↗ ' + esc(t('share')) + '</button>' +
+    (isMissing ? '' : '<button class="share-btn" id="cardBtn" style="margin-left:8px">🃏 ' + esc(t('card_btn')) + '</button>');
   $('#popup').hidden = false;
   $('#shareBtn').addEventListener('click', () => shareFish(f));
+  const cb = $('#cardBtn'); if (cb) cb.addEventListener('click', () => makeCard(f));
 }
 function closePopup() { $('#popup').hidden = true; }
 /* ----- QR code to the public site (shown in person, e.g. while travelling) ----- */
@@ -876,6 +878,112 @@ function shareFish(f) {
   if (navigator.share) navigator.share({ title: 'Ozbak Lifelist', text, url }).catch(() => {});
   else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => alert(url));
   else prompt('Copy this link / Copiez ce lien :', url);
+}
+
+/* ----- Instagram catch card (owner-approved design, 2026-11-21) -----
+   1080x1350 (4:5), English only, one accent colour per gallery:
+   main = brand blue, subspecies = teal, hybrids = purple. The catch
+   photo is shown WHOLE (contain) over a blurred cover backdrop. */
+const CARD_STYLE = {
+  main: { accent: '#004393', tint: '#EAF1F8', label: 'Main species' },
+  subspecies: { accent: '#096E80', tint: '#E3F2F5', label: 'Subspecies and variants' },
+  hybrids: { accent: '#5E35B1', tint: '#ECE5F7', label: 'Hybrids' }
+};
+function loadImg(src, cors) {
+  return new Promise((res, rej) => {
+    const i = new Image();
+    if (cors) i.crossOrigin = 'anonymous';
+    i.onload = () => res(i); i.onerror = rej; i.src = src;
+  });
+}
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+async function makeCard(f) {
+  const st = CARD_STYLE[f.gallery] || CARD_STYLE.main;
+  const W = 1080, H = 1350;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#FAF9F8'; ctx.fillRect(0, 0, W, H);
+  let photo = null, logo = null, qr = null;
+  try { logo = await loadImg('ozbak-logo.png'); } catch (e) {}
+  try { qr = await loadImg('qr-site.png'); } catch (e) {}
+  if (f.photo) { try { photo = await loadImg(f.photo, true); } catch (e) { try { photo = await loadImg(f.photo); } catch (e2) {} } }
+  // frame + header band
+  rr(ctx, 18, 18, W - 36, H - 36, 42); ctx.lineWidth = 10; ctx.strokeStyle = st.accent; ctx.stroke();
+  rr(ctx, 48, 48, W - 96, 190, 28); ctx.fillStyle = st.accent; ctx.fill();
+  let size = 60;
+  ctx.fillStyle = '#fff'; ctx.textBaseline = 'alphabetic';
+  do { ctx.font = '700 ' + size + 'px Arial, sans-serif'; size -= 4; }
+  while (ctx.measureText((f.name_en || '').toUpperCase()).width > 690 && size > 30);
+  ctx.fillText((f.name_en || '').toUpperCase(), 84, 138);
+  ctx.font = '700 36px Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.fillText(st.label, 84, 196);
+  ctx.beginPath(); ctx.arc(W - 161, 131, 57, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.fillStyle = st.accent; ctx.font = '700 44px Arial, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('#' + (f.num || ''), W - 161, 147); ctx.textAlign = 'left';
+  // scientific + family
+  ctx.fillStyle = '#5A697D'; ctx.font = 'italic 34px Georgia, serif';
+  const sci = f.scientific || '';
+  ctx.fillText(sci, 84, 290);
+  const sw = ctx.measureText(sci).width;
+  ctx.fillText('·  ' + (f.family || ''), 84 + sw + 14, 290);
+  // photo window: blurred cover backdrop + whole photo on top
+  const px = 48, py = 318, pw = W - 96, ph = 600;
+  rr(ctx, px, py, pw, ph, 18); ctx.save(); ctx.clip();
+  if (photo) {
+    const s = Math.max(pw / photo.width, ph / photo.height);
+    try { ctx.filter = 'blur(28px)'; } catch (e) {}
+    ctx.drawImage(photo, px + (pw - photo.width * s) / 2 - 30, py + (ph - photo.height * s) / 2 - 30, photo.width * s + 60, photo.height * s + 60);
+    try { ctx.filter = 'none'; } catch (e) {}
+    const s2 = Math.min(pw / photo.width, ph / photo.height);
+    ctx.drawImage(photo, px + (pw - photo.width * s2) / 2, py + (ph - photo.height * s2) / 2, photo.width * s2, photo.height * s2);
+  } else {
+    ctx.fillStyle = st.tint; ctx.fillRect(px, py, pw, ph);
+    if (logo) ctx.drawImage(logo, px + (pw - 380) / 2, py + (ph - 380) / 2, 380, 380);
+  }
+  ctx.restore();
+  rr(ctx, px, py, pw, ph, 18); ctx.lineWidth = 6; ctx.strokeStyle = st.accent; ctx.stroke();
+  // stats box (always English on the card)
+  rr(ctx, 48, 952, W - 96, 200, 24); ctx.fillStyle = st.tint; ctx.fill();
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  let dateStr = '—';
+  if (f.date) { const p = f.date.split('-'); if (p.length === 3) dateStr = months[parseInt(p[1], 10) - 1] + ' ' + parseInt(p[2], 10) + ', ' + p[0]; }
+  const placeStr = [f.place, f.country].filter(Boolean).join(', ') || '—';
+  const isWater = (f.category === 'Freshwater' || f.category === 'Saltwater');
+  const cells = [['DATE', dateStr], ['PLACE', placeStr], isWater ? ['WATER', f.category] : ['TYPE', f.category || '—'], ['FAMILY', f.family || '—']];
+  cells.forEach((c, i) => {
+    const cx = 48 + (i % 2) * ((W - 96) / 2), cy = 952 + Math.floor(i / 2) * 100;
+    ctx.fillStyle = '#5A697D'; ctx.font = '700 27px Arial, sans-serif'; ctx.fillText(c[0], cx + 36, cy + 50);
+    ctx.fillStyle = '#142335'; ctx.font = '700 36px Arial, sans-serif'; ctx.fillText(c[1], cx + 36, cy + 92);
+  });
+  // footer: logo + brand + QR
+  if (logo) ctx.drawImage(logo, 56, H - 196, 150, 150);
+  ctx.fillStyle = '#004393'; ctx.font = '700 42px Arial, sans-serif';
+  ctx.fillText('OZBAK — LIFELIST', 226, H - 104);
+  if (qr) ctx.drawImage(qr, W - 196, H - 200, 140, 140);
+  ctx.fillStyle = '#5A697D'; ctx.font = '26px Arial, sans-serif';
+  ctx.fillText('My lifelist', W - 196, H - 28);
+  // present: preview + share / download
+  const url = cv.toDataURL('image/png');
+  $('#popupContent').innerHTML = '<h2>' + esc(t('card_title')) + '</h2>' +
+    '<img class="bigphoto" src="' + url + '" alt="Instagram card">' +
+    '<button class="share-btn" id="cardShareBtn">↗ ' + esc(t('share')) + '</button>' +
+    '<a class="share-btn" style="margin-left:8px;text-decoration:none;display:inline-block" href="' + url + '" download="ozbak-card-' + (f.num || 'x') + '.png">⬇ ' + esc(t('download')) + '</a>';
+  $('#popup').hidden = false;
+  $('#cardShareBtn').addEventListener('click', async () => {
+    try {
+      const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+      const file = new File([blob], 'ozbak-card-' + (f.num || 'x') + '.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+      if (navigator.share) { await navigator.share({ title: 'Ozbak Lifelist', text: '#' + (f.num || '') + ' ' + (f.name_en || '') + ' — Ozbak Lifelist' }); return; }
+    } catch (e) {}
+    const a = document.createElement('a'); a.href = url; a.download = 'ozbak-card-' + (f.num || 'x') + '.png'; a.click();
+  });
 }
 
 /* ---------- Fingerprint lock for the Admin (S6) ----------
@@ -1020,7 +1128,7 @@ function adminHTML() {
     '<div><label>' + esc(t('f_fr')) + ' *</label><input id="af_fr" required></div>' +
     '<div><label>' + esc(t('f_sci')) + ' *</label><input id="af_sci" required></div>' +
     '<div><label>' + esc(t('f_family')) + '</label><input id="af_family"></div>' +
-    '<div><label>' + esc(t('f_gallery')) + '</label><select id="af_gallery"><option value="main">Main species</option><option value="subspecies">Subspecies and Variants</option><option value="hybrids">Hybrids</option></select></div>' +
+    '<div><label>' + esc(t('f_gallery')) + '</label><select id="af_gallery"><option value="main">Main species</option><option value="subspecies">Subspecies and variants</option><option value="hybrids">Hybrids</option></select></div>' +
     '<div><label>' + esc(t('f_water')) + '</label><select id="af_water"><option>Freshwater</option><option>Saltwater</option><option>Variant</option></select></div>' +
     /* The date input starts on today (the publication day, which is also
        the payload fallback when left untouched) so the owner sees which
