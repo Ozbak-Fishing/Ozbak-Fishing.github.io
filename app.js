@@ -763,12 +763,13 @@ function photoHTML(f, cls) {
 }
 function cardHTML(f, gallery) {
   const badge = gallery === 'missing' ? ('#' + esc(f.quest)) : ('#' + f.num);
+  const wlab = f.gallery === 'subspecies' ? (f.water || 'Freshwater') : (f.category || '—');
   let h = '<div><button class="card" data-fish="' + f.id + '"><span class="ph">' + photoHTML(f) +
     '<span class="badge">' + badge + '</span>' + (f.photo ? '<span class="sci">' + esc(f.scientific) + '</span>' : '') +
     (gallery === 'missing' && f.priority ? '<span class="prio">' + esc(t('priority')) + '</span>' : '') + '</span>' +
     '<span class="body" style="display:block"><span class="primary" style="display:block">' + esc(primaryName(f)) + '</span>' +
     '<span class="secondary" style="display:block">' + esc(secondaryName(f)) + '</span>' +
-    '<span class="foot"><span class="water' + (f.category === 'Saltwater' ? ' salt' : '') + '">' + esc(f.category || '—') + '</span>' +
+    '<span class="foot"><span class="water' + (wlab === 'Saltwater' ? ' salt' : '') + '">' + esc(wlab) + '</span>' +
     '<span class="place">' + esc(placeLabel(f)) + '</span></span></span></button>';
   if (gallery === 'missing' && adminUnlocked) h += '<button class="transfer-btn" data-transfer="' + f.id + '">' + esc(t('transfer')) + '</button>';
   return h + '</div>';
