@@ -34,7 +34,7 @@ const T = {
     what_text: 'A lifelist is the search for ALL fish species — micro or monster, every size counts — as long as it is caught on a line. Each new species, once its identification is confirmed, takes the next number on the list, in catch order.',
     follow: 'Follow me',
     qr_caption: 'Scan to see my lifelist',
-    galleries: 'Galleries',
+    galleries: 'Galleries', latest_title: 'Latest catches',
     stats: 'Statistics',
     stat_year: 'By year', stat_place: 'By country / place', stat_water: 'Freshwater vs Saltwater', stat_family: 'By family',
     search_ph: 'Search a species…',
@@ -107,7 +107,7 @@ const T = {
     what_text: "Une lifelist, c'est la recherche de TOUS les poissons — micro ou monstre, toutes les tailles comptent — à condition de le prendre à la ligne. Chaque nouvelle espèce, une fois son identification confirmée, prend le prochain numéro de la liste, dans l'ordre de capture.",
     follow: 'Suivez-moi',
     qr_caption: 'Scanne pour voir ma lifelist',
-    galleries: 'Galeries',
+    galleries: 'Galeries', latest_title: 'Dernières prises',
     stats: 'Statistiques',
     stat_year: 'Par année', stat_place: 'Par pays / lieu', stat_water: 'Eau douce vs eau salée', stat_family: 'Par famille',
     search_ph: 'Rechercher une espèce…',
@@ -598,10 +598,17 @@ function applyStaticI18n() {
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.getAttribute('data-i18n')); });
   document.documentElement.lang = lang;
 }
+function updateAdminBadge() {
+  const b = document.getElementById('adminBadge');
+  if (!b) return;
+  const n = state ? (state.pending.length + state.outbox.length) : 0;
+  b.hidden = n === 0;
+  b.textContent = n > 0 ? String(n) : '';
+}
 function render() {
-  applyStaticI18n(); setActiveNav();
+  applyStaticI18n(); setActiveNav(); updateAdminBadge();
   const v = $('#view');
-  if (route.name === 'home') v.innerHTML = homeHTML();
+  if (route.name === 'home') { v.innerHTML = homeHTML(); v.querySelectorAll('[data-fish]').forEach((el) => el.addEventListener('click', () => openPopup(el.getAttribute('data-fish')))); }
   else if (route.name === 'gallery') { v.innerHTML = galleryHTML(route.gallery); wireGallery(route.gallery); }
   else if (route.name === 'admin') { v.innerHTML = adminHTML(); wireAdmin(); }
   window.scrollTo(0, 0);
@@ -633,7 +640,8 @@ function statsHTML() {
 }
 function homeHTML() {
   const cM = caught('main').length, cS = caught('subspecies').length, cH = caught('hybrids').length, cQ = missingAll().length;
-  const galCard = (g, n, label) => '<a class="gal-card" href="#" data-go="' + g + '"><div class="n">' + n + '</div><div class="t">' + esc(label) + '</div></a>';
+  const latest = state.fish.filter((f) => f.status === 'caught').slice()
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || ((b.num || 0) - (a.num || 0))).slice(0, 3);
   return '<section class="hero"><img class="logo" src="ozbak-logo.png" alt="Ozbak logo">' +
     '<h1>' + esc(t('hero_title')) + '</h1><p>' + esc(t('hero_intro')) + '</p>' +
     '<div class="pills">' +
@@ -647,9 +655,8 @@ function homeHTML() {
     '<p class="qr-caption">' + esc(t('qr_caption')) + '</p>' +
     '<p class="qr-url">https://ozbak-fishing.github.io/</p></div></section>' +
     '<section class="section"><h2>' + esc(t('what_title')) + '</h2><p class="lead">' + esc(t('what_text')) + '</p></section>' +
-    '<section class="section"><h2>' + esc(t('galleries')) + '</h2><div class="gal-cards">' +
-    galCard('main', cM, t('nav_main')) + galCard('subspecies', cS, t('nav_sub')) +
-    galCard('hybrids', cH, t('nav_hyb')) + galCard('missing', cQ, t('nav_missing')) + '</div></section>' +
+    '<section class="section"><h2>' + esc(t('latest_title')) + '</h2><div class="grid">' +
+    latest.map((f) => cardHTML(f, f.gallery)).join('') + '</div></section>' +
     '<section class="section"><h2>' + esc(t('stats')) + '</h2>' + statsHTML() + '</section>';
 }
 
