@@ -264,9 +264,15 @@ function mapMissingRow(r) {
     suggested_place: '', when: ''
   };
 }
+let serverBackup = null; /* {at, count} of the last backup, shared by all devices via app_meta */
 async function fetchLiveDataset() {
   const species = await sbGet('/rest/v1/species?select=*');
   const missing = await sbGet('/rest/v1/missing_species?select=*');
+  try {
+    const meta = await sbGet('/rest/v1/app_meta?select=*');
+    const row = (meta || []).find((m) => m.key === 'last_backup');
+    serverBackup = row && row.value ? row.value : null;
+  } catch (e) { /* app_meta unavailable: keep the local backup marker */ }
   return { fish: species.map(mapSpeciesRow).concat(missing.map(mapMissingRow)) };
 }
 
@@ -456,6 +462,8 @@ async function executeOp(op) {
     const f = Object.assign({}, op.fish);
     if (op.photoDataUrl) f.photo = await uploadPhoto(op.photoDataUrl);
     await sbWrite('PATCH', '/rest/v1/species?id=eq.' + op.dbId, speciesPayload(f));
+  } else if (op.kind === 'backupMark') {
+    await sbWrite('POST', '/rest/v1/app_meta', { key: 'last_backup', value: { at: op.at, count: op.count }, updated_at: new Date(op.at).toISOString() }, 'resolution=merge-duplicates');
   } else if (op.kind === 'priority') {
     await sbWrite('PATCH', '/rest/v1/missing_species?id=eq.' + op.dbId, { is_priority: op.value });
   } else if (op.kind === 'patchNum') {
@@ -521,6 +529,12 @@ async function refreshDataset() {
   const pendingDeletes = new Set(state.outbox.filter((o) => o.kind === 'delete').map((o) => o.dbId));
   state.fish = live.fish.filter((f) => !pendingDeletes.has(f.dbId)).concat(unsynced);
   state.dataSource = 'live';
+  /* The shared backup marker wins when it is the newest: one backup on any
+     device clears the reminder dot on every device. */
+  if (serverBackup && serverBackup.at && serverBackup.at > (state.lastBackup || 0)) {
+    state.lastBackup = serverBackup.at;
+    state.backupCount = serverBackup.count || 0;
+  }
 }
 
 /* ---------------- state ----------------
@@ -837,7 +851,8 @@ async function doBackup(btn) {
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     state.lastBackup = Date.now();
     state.backupCount = state.fish.filter((x) => x.status === 'caught').length;
-    saveState(); updateAdminBadge();
+    state.outbox.push({ kind: 'backupMark', at: state.lastBackup, count: state.backupCount });
+    saveState(); updateAdminBadge(); processOutbox(false);
     const bi = document.getElementById('backupInfo'); if (bi) bi.innerHTML = backupInfoHTML();
   } finally { btn.disabled = false; btn.textContent = label; }
 }
