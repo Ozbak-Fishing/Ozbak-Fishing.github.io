@@ -40,7 +40,9 @@ const T = {
     stats: 'Statistics',
     stat_year: 'By year', stat_place: 'By country / place', stat_water: 'Freshwater vs Saltwater', stat_family: 'By family',
     search_ph: 'Search a species…',
-    all_families: 'All families', all_types: 'All types', all_countries: 'All countries', all_places: 'All places',
+    all_families: 'All families', all_types: 'All types', all_countries: 'All countries', all_places: 'All places', all_years: 'All years',
+    f_local: 'Local name (optional)', local_name: 'Local name',
+    bk_never: 'No backup yet on this device', bk_today: 'Last backup: today', bk_days: 'Last backup: {d} day(s) ago', bk_due: 'Backup recommended',
     sort_number: 'Sort: number', sort_name: 'Sort: name', sort_family: 'Sort: family',
     dir_desc: '↓ Descending', dir_asc: '↑ Ascending', priority: '★ Priority',
     species: 'species', no_results: 'No species matches your search.',
@@ -115,7 +117,9 @@ const T = {
     stats: 'Statistiques',
     stat_year: 'Par année', stat_place: 'Par pays / lieu', stat_water: 'Eau douce vs eau salée', stat_family: 'Par famille',
     search_ph: 'Rechercher une espèce…',
-    all_families: 'Toutes les familles', all_types: 'Tous types', all_countries: 'Tous les pays', all_places: 'Tous les lieux',
+    all_families: 'Toutes les familles', all_types: 'Tous types', all_countries: 'Tous les pays', all_places: 'Tous les lieux', all_years: 'Toutes les années',
+    f_local: 'Nom local (optionnel)', local_name: 'Nom local',
+    bk_never: 'Aucune sauvegarde sur cet appareil', bk_today: "Dernière sauvegarde : aujourd'hui", bk_days: 'Dernière sauvegarde : il y a {d} jour(s)', bk_due: 'Sauvegarde recommandée',
     sort_number: 'Tri : numéro', sort_name: 'Tri : nom', sort_family: 'Tri : famille',
     dir_desc: '↓ Décroissant', dir_asc: '↑ Croissant', priority: '★ Prioritaire',
     species: 'espèces', no_results: 'Aucune espèce ne correspond à votre recherche.',
@@ -244,7 +248,7 @@ function mapSpeciesRow(r) {
   return {
     id: 'db-' + r.id, dbId: r.id, num: r.capture_number != null ? r.capture_number : null, quest: null,
     gallery, category: gallery === 'subspecies' ? 'Variant' : water, water: water || 'Freshwater',
-    name_en: r.english_name || '', name_fr: r.french_name || '', scientific: r.scientific_name || '',
+    name_en: r.english_name || '', name_fr: r.french_name || '', local: r.local_name || '', scientific: r.scientific_name || '',
     family: r.family || '', date: r.capture_date || '', country, place,
     notes: r.notes || '', photo: r.image_url || null, inaturalist: r.inaturalist_url || '',
     status: 'caught', suggested_place: '', when: ''
@@ -338,6 +342,7 @@ function speciesPayload(f) {
   const water = String(f.water || (f.category === 'Variant' ? 'Freshwater' : f.category) || 'Freshwater').toLowerCase();
   return {
     scientific_name: f.scientific, english_name: f.name_en, french_name: f.name_fr,
+    local_name: f.local || null,
     family: f.family || null, water_type: water,
     category: f.gallery === 'hybrids' ? 'hybrid' : (f.gallery || 'main'),
     capture_number: f.num != null ? f.num : null,
@@ -532,7 +537,7 @@ function seedFromData(data) {
   const push = (arr, gallery) => (arr || []).forEach((x, i) => fish.push({
     id: gallery + '-' + i + '-' + slug(x.scientific), dbId: null, num: x.num ? parseInt(x.num, 10) : null,
     quest: null, gallery, category: x.category || '', water: x.category && x.category !== 'Variant' ? x.category : 'Freshwater',
-    name_en: x.name_en || '', name_fr: x.name_fr || '',
+    name_en: x.name_en || '', name_fr: x.name_fr || '', local: x.local || '',
     scientific: x.scientific || '', family: x.family || '', date: x.date || '', country: x.country || '',
     place: x.place || '', notes: x.notes || '', photo: x.photo || null, inaturalist: x.inaturalist || '',
     status: 'caught', suggested_place: '', when: ''
@@ -608,8 +613,26 @@ function updateAdminBadge() {
   const b = document.getElementById('adminBadge');
   if (!b) return;
   const n = state ? (state.pending.length + state.outbox.length) : 0;
-  b.hidden = n === 0;
-  b.textContent = n > 0 ? String(n) : '';
+  const due = n === 0 && state && backupDue();
+  b.hidden = n === 0 && !due;
+  b.textContent = n > 0 ? String(n) : (due ? '•' : '');
+}
+/* ----- backup freshness: a red dot on the Admin tab when a backup is due
+   (new species synced since the last backup, or 30+ days without one) ----- */
+function backupDue() {
+  if (!state || !state.lastBackup) return true;
+  const caughtNow = state.fish.filter((x) => x.status === 'caught').length;
+  if (caughtNow > (state.backupCount || 0)) return true;
+  return (Date.now() - state.lastBackup) > 30 * 864e5;
+}
+function backupInfoHTML() {
+  let s;
+  if (!state.lastBackup) s = t('bk_never');
+  else {
+    const days = Math.floor((Date.now() - state.lastBackup) / 864e5);
+    s = days <= 0 ? t('bk_today') : t('bk_days').replace('{d}', String(days));
+  }
+  return esc(s) + (backupDue() ? ' · <strong style="color:#c62828">' + esc(t('bk_due')) + '</strong>' : '');
 }
 function render() {
   stopCarousels();
@@ -739,7 +762,7 @@ function homeHTML() {
 /* ----- gallery ----- */
 const GAL_TITLE = { main: 'nav_main', subspecies: 'nav_sub', hybrids: 'nav_hyb', missing: 'nav_missing' };
 const GAL_DESC = { main: 'gal_main_d', subspecies: 'gal_sub_d', hybrids: 'gal_hyb_d', missing: 'gal_missing_d' };
-let galFilters = { q: '', family: '', type: '', country: '', place: '', sort: 'number', dir: 'desc' };
+let galFilters = { q: '', family: '', type: '', country: '', place: '', year: '', sort: 'number', dir: 'desc' };
 function galleryItems(gallery) {
   return gallery === 'missing' ? missingAll() : caught(gallery);
 }
@@ -749,6 +772,7 @@ function galleryHTML(gallery) {
   const types = [...new Set(items.map((f) => f.category).filter(Boolean))].sort();
   const countries = [...new Set(items.map((f) => f.country).filter(Boolean))].sort();
   const places = [...new Set(items.filter((f) => !galFilters.country || f.country === galFilters.country).map((f) => f.place).filter(Boolean))].sort();
+  const years = [...new Set(items.map((f) => (f.date || '').slice(0, 4)).filter(Boolean))].sort().reverse();
   const opt = (vals, allLabel) => '<option value="">' + esc(allLabel) + '</option>' + vals.map((v) => '<option value="' + esc(v) + '">' + esc(v) + '</option>').join('');
   return '<div class="gal-head"><h1>' + esc(t(GAL_TITLE[gallery])) + '</h1><p>' + esc(t(GAL_DESC[gallery])) + '</p></div>' +
     (gallery === 'missing' && adminUnlocked ? '<div class="ok">' + esc(t('missing_admin_note')) + '</div>' : '') +
@@ -757,6 +781,7 @@ function galleryHTML(gallery) {
     '<select id="gtype">' + opt(types, t('all_types')) + '</select>' +
     '<select id="gcountry">' + opt(countries, t('all_countries')) + '</select>' +
     '<select id="gplace">' + opt(places, t('all_places')) + '</select>' +
+    (gallery === 'missing' ? '' : '<select id="gyear">' + opt(years, t('all_years')) + '</select>') +
     '<select id="gsort"><option value="number">' + esc(t('sort_number')) + '</option><option value="name">' + esc(t('sort_name')) + '</option><option value="family">' + esc(t('sort_family')) + '</option></select>' +
     '<button id="gdir" type="button"></button></div>' +
     '<div class="meta"><span class="count" id="gcount"></span>' +
@@ -810,13 +835,18 @@ async function doBackup(btn) {
     a.href = URL.createObjectURL(makeZip(files)); a.download = 'ozbak-sauvegarde-' + todayLocalISO() + '.zip';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    state.lastBackup = Date.now();
+    state.backupCount = state.fish.filter((x) => x.status === 'caught').length;
+    saveState(); updateAdminBadge();
+    const bi = document.getElementById('backupInfo'); if (bi) bi.innerHTML = backupInfoHTML();
   } finally { btn.disabled = false; btn.textContent = label; }
 }
 
 function filteredItems(gallery) {
   const q = norm(galFilters.q);
   let items = galleryItems(gallery).filter((f) => {
-    if (q && !(norm(f.name_en).includes(q) || norm(f.name_fr).includes(q) || norm(f.scientific).includes(q))) return false;
+    if (q && !(norm(f.name_en).includes(q) || norm(f.name_fr).includes(q) || norm(f.scientific).includes(q) || norm(f.local || '').includes(q))) return false;
+    if (gallery !== 'missing' && galFilters.year && (f.date || '').slice(0, 4) !== galFilters.year) return false;
     if (galFilters.family && f.family !== galFilters.family) return false;
     if (galFilters.type && f.category !== galFilters.type) return false;
     if (galFilters.country && f.country !== galFilters.country) return false;
@@ -888,6 +918,8 @@ function wireGallery(gallery) {
   };
   const countrySel = $('#gcountry');
   if (countrySel) countrySel.value = galFilters.country || '';
+  const yearSel = $('#gyear');
+  if (yearSel) { yearSel.value = galFilters.year || ''; yearSel.addEventListener('change', (e) => { galFilters.year = e.target.value; on(); }); }
   refreshPlaces();
   $('#gsort').value = galFilters.sort;
   $('#gq').addEventListener('input', (e) => { galFilters.q = e.target.value; on(); });
@@ -930,6 +962,7 @@ function openPopup(id) {
     '<div><dt>' + esc(t('scientific')) + ':</dt><dd><i>' + esc(f.scientific) + '</i></dd></div>' +
     '<div><dt>' + esc(t('english')) + ':</dt><dd>' + esc(f.name_en) + '</dd></div>' +
     '<div><dt>' + esc(t('french')) + ':</dt><dd>' + esc(f.name_fr) + '</dd></div>' +
+    (f.local ? '<div><dt>' + esc(t('local_name')) + ':</dt><dd>' + esc(f.local) + '</dd></div>' : '') +
     '<div><dt>' + esc(t('family')) + ':</dt><dd>' + esc(f.family) + '</dd></div></dl>' +
     '<h3 style="margin-top:14px">' + esc(t('water_type')) + '</h3><span class="water' + (waterLabel === 'Saltwater' ? ' salt' : '') + '">' + esc(waterLabel) + '</span></div>' +
     '<div><h3>' + esc(t('capture')) + '</h3><dl>' + captureRows + '</dl>' +
@@ -1200,7 +1233,8 @@ function adminHTML() {
     '<h3 style="margin-top:18px">' + esc(t('data_control')) + '</h3><div class="radio-row">' +
     radio('blocked', t('sync_blocked')) + radio('wifi', t('sync_wifi')) + radio('both', t('sync_both')) + '</div>' +
     '<button class="btn ghost" id="syncNow">' + esc(t('sync_now')) + '</button> ' +
-    '<button class="btn ghost" id="backupBtn">' + esc(t('backup_btn')) + '</button></div>' +
+    '<button class="btn ghost" id="backupBtn">' + esc(t('backup_btn')) + '</button>' +
+    '<div class="small" id="backupInfo" style="margin-top:8px">' + backupInfoHTML() + '</div></div>' +
     '<div class="panel"><h3>' + esc(t('pending_title')) + ' (' + state.pending.length + ')</h3>' + pendingList + '</div>' +
     '<div class="panel"><h3 id="formTitle">' + esc(t('add_title')) + '</h3>' +
     '<label>' + esc(t('edit_existing')) + '</label><select id="editSelect"><option value="">' + esc(t('choose_fish')) + '</option>' + editOptions + '</select>' +
@@ -1209,6 +1243,7 @@ function adminHTML() {
     '<div><label>' + esc(t('f_fr')) + ' *</label><input id="af_fr" required></div>' +
     '<div><label>' + esc(t('f_sci')) + ' *</label><input id="af_sci" required></div>' +
     '<div><label>' + esc(t('f_family')) + '</label><input id="af_family"></div>' +
+    '<div><label>' + esc(t('f_local')) + '</label><input id="af_local"></div>' +
     '<div><label>' + esc(t('f_gallery')) + '</label><select id="af_gallery"><option value="main">Main species</option><option value="subspecies">Subspecies and variants</option><option value="hybrids">Hybrids</option></select></div>' +
     '<div><label>' + esc(t('f_water')) + '</label><select id="af_water"><option>Freshwater</option><option>Saltwater</option><option>Variant</option></select></div>' +
     /* The date input starts on today (the publication day, which is also
@@ -1332,7 +1367,8 @@ function showPhotoPreview() {
 }
 function fillForm(f) {
   $('#af_en').value = f.name_en || ''; $('#af_fr').value = f.name_fr || ''; $('#af_sci').value = f.scientific || '';
-  $('#af_family').value = f.family || ''; $('#af_date').value = f.date || ''; $('#af_country').value = f.country || '';
+  $('#af_family').value = f.family || ''; const al = $('#af_local'); if (al) al.value = f.local || '';
+  $('#af_date').value = f.date || ''; $('#af_country').value = f.country || '';
   $('#af_place').value = f.place || ''; $('#af_inat').value = f.inaturalist || ''; $('#af_notes').value = f.notes || '';
   const g = $('#af_gallery'); if (g && ['main', 'subspecies', 'hybrids'].includes(f.gallery)) g.value = f.gallery;
   const w = $('#af_water'); const wv = f.gallery === 'subspecies' ? (f.water || 'Freshwater') : f.category;
@@ -1449,7 +1485,7 @@ function wireAdmin() {
     if (dup && !confirm(t('dup_title') + ' — ' + t('dup_msg') + (dup.num ? '#' + dup.num + ' ' : '') + primaryName(dup) + ' (' + dup.scientific + '). ' + t('dup_ask'))) return;
     const waterVal = $('#af_water').value;
     const base = {
-      name_en: $('#af_en').value.trim(), name_fr: $('#af_fr').value.trim(), scientific: sci,
+      name_en: $('#af_en').value.trim(), name_fr: $('#af_fr').value.trim(), local: ($('#af_local') ? $('#af_local').value.trim() : ''), scientific: sci,
       family: $('#af_family').value.trim(), category: waterVal, water: waterVal === 'Variant' ? 'Freshwater' : waterVal,
       date: $('#af_date').value,
       country: $('#af_country').value.trim(), place: $('#af_place').value.trim(),
