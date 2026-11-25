@@ -40,6 +40,10 @@ const T = {
     stats: 'Statistics',
     stat_year: 'By year', stat_place: 'By country / place', stat_water: 'Freshwater vs Saltwater', stat_family: 'By family',
     stat_curve: 'Cumulative progress', stats_open: 'View statistics',
+    stat_goal_lifelist: 'Lifelist — main species', stat_goal_qc: 'Québec — freshwater fish',
+    goals_title: 'Goals', goal_life_target: 'Lifelist goal', goal_qc_count: 'Québec — species found',
+    goal_qc_target: 'Québec goal', goals_note: 'The lifelist count is automatic; the Québec count is updated here when you catch a new species from the 117.',
+    goals_saved: 'Goals saved — they will apply on all your devices.', save_btn: 'Save',
     search_ph: 'Search a species…',
     all_families: 'All families', all_types: 'All types', all_countries: 'All countries', all_places: 'All places', all_years: 'All years',
     f_local: 'Local name (optional)', local_name: 'Local name',
@@ -118,6 +122,10 @@ const T = {
     stats: 'Statistiques',
     stat_year: 'Par année', stat_place: 'Par pays / lieu', stat_water: 'Eau douce vs eau salée', stat_family: 'Par famille',
     stat_curve: 'Progression cumulée', stats_open: 'Voir les statistiques',
+    stat_goal_lifelist: 'Lifelist — espèces principales', stat_goal_qc: 'Québec — poissons d\'eau douce',
+    goals_title: 'Objectifs', goal_life_target: 'Objectif lifelist', goal_qc_count: 'Québec — espèces trouvées',
+    goal_qc_target: 'Objectif Québec', goals_note: 'Le nombre de la lifelist est automatique ; le nombre Québec se met à jour ici quand tu prends une nouvelle espèce des 117.',
+    goals_saved: 'Objectifs enregistrés — ils s\'appliqueront sur tous tes appareils.', save_btn: 'Enregistrer',
     search_ph: 'Rechercher une espèce…',
     all_families: 'Toutes les familles', all_types: 'Tous types', all_countries: 'Tous les pays', all_places: 'Tous les lieux', all_years: 'Toutes les années',
     f_local: 'Nom local (optionnel)', local_name: 'Nom local',
@@ -267,6 +275,8 @@ function mapMissingRow(r) {
   };
 }
 let serverBackup = null; /* {at, count} of the last backup, shared by all devices via app_meta */
+let serverTargets = null; /* {lifelist, qcCount, qcTarget} — admin-set goals, shared the same way */
+function statTargets() { return state.statTargets || { lifelist: 75, qcCount: 39, qcTarget: 117 }; }
 async function fetchLiveDataset() {
   const species = await sbGet('/rest/v1/species?select=*');
   const missing = await sbGet('/rest/v1/missing_species?select=*');
@@ -274,7 +284,9 @@ async function fetchLiveDataset() {
     const meta = await sbGet('/rest/v1/app_meta?select=*');
     const row = (meta || []).find((m) => m.key === 'last_backup');
     serverBackup = row && row.value ? row.value : null;
-  } catch (e) { /* app_meta unavailable: keep the local backup marker */ }
+    const trow = (meta || []).find((m) => m.key === 'stat_targets');
+    serverTargets = trow && trow.value ? trow.value : null;
+  } catch (e) { /* app_meta unavailable: keep the local markers */ }
   return { fish: species.map(mapSpeciesRow).concat(missing.map(mapMissingRow)) };
 }
 
@@ -466,6 +478,8 @@ async function executeOp(op) {
     await sbWrite('PATCH', '/rest/v1/species?id=eq.' + op.dbId, speciesPayload(f));
   } else if (op.kind === 'backupMark') {
     await sbWrite('POST', '/rest/v1/app_meta', { key: 'last_backup', value: { at: op.at, count: op.count }, updated_at: new Date(op.at).toISOString() }, 'resolution=merge-duplicates');
+  } else if (op.kind === 'targetsMark') {
+    await sbWrite('POST', '/rest/v1/app_meta', { key: 'stat_targets', value: op.value, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates');
   } else if (op.kind === 'priority') {
     await sbWrite('PATCH', '/rest/v1/missing_species?id=eq.' + op.dbId, { is_priority: op.value });
   } else if (op.kind === 'patchNum') {
@@ -537,6 +551,8 @@ async function refreshDataset() {
     state.lastBackup = serverBackup.at;
     state.backupCount = serverBackup.count || 0;
   }
+  /* The shared goals win when present: one admin change applies everywhere. */
+  if (serverTargets && typeof serverTargets.lifelist === 'number') state.statTargets = serverTargets;
 }
 
 /* ---------------- state ----------------
@@ -706,8 +722,17 @@ function cumulativeCurveHTML() {
     '<svg class="curve" viewBox="0 0 ' + Wd + ' ' + Ht + '" role="img" aria-label="' + esc(t('stat_curve')) + '">' +
     '<polyline points="' + pts + '" fill="none" stroke="#004393" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>' + dots + '</svg></div>';
 }
+function goalBarHTML(label, count, target) {
+  const pct = target > 0 ? Math.min(100, Math.round((count / target) * 1000) / 10) : 0;
+  return '<div class="stat-box"><h3>' + esc(label) + '</h3>' +
+    '<div class="stat-row"><div class="lbl"><span>' + count + ' / ' + target + '</span><b>' + pct + '%</b></div>' +
+    '<div class="bar"><i style="width:' + pct + '%"></i></div></div></div>';
+}
 function statsPageHTML() {
-  return '<section class="section"><h2>' + esc(t('stats')) + '</h2>' + cumulativeCurveHTML() + statsHTML() + '</section>';
+  const tg = statTargets();
+  return '<section class="section"><h2>' + esc(t('stats')) + '</h2>' +
+    '<div class="stats-grid">' + goalBarHTML(t('stat_goal_lifelist'), caught('main').length, tg.lifelist) + goalBarHTML(t('stat_goal_qc'), tg.qcCount, tg.qcTarget) + '</div>' +
+    cumulativeCurveHTML() + statsHTML() + '</section>';
 }
 /* ----- home carousels: slow continuous loop, manual drag, tap = fiche ----- */
 let carouselCleanups = [];
@@ -1248,6 +1273,7 @@ function adminHTML() {
       '<button class="btn danger" id="bioDisableBtn" type="button">' + esc(t('bio_disable_pw')) + '</button></div></div>';
   }
   const pendingCount = state.outbox.length;
+  const tg = statTargets();
   const isOffline = typeof navigator !== 'undefined' && navigator && navigator.onLine === false;
   const syncLabel = pendingCount ? esc(t('pending_sync')) + ': ' + pendingCount
     : (isOffline ? esc(t('sync_offline')) : esc(t('synchronized')));
@@ -1277,6 +1303,12 @@ function adminHTML() {
     '<button class="btn ghost" id="syncNow">' + esc(t('sync_now')) + '</button> ' +
     '<button class="btn ghost" id="backupBtn">' + esc(t('backup_btn')) + '</button>' +
     '<div class="small" id="backupInfo" style="margin-top:8px">' + backupInfoHTML() + '</div></div>' +
+    '<div class="panel"><h3>' + esc(t('goals_title')) + '</h3><div class="form-grid">' +
+    '<div><label>' + esc(t('goal_life_target')) + '</label><input type="number" id="goalLife" min="1" value="' + tg.lifelist + '"></div>' +
+    '<div><label>' + esc(t('goal_qc_count')) + '</label><input type="number" id="goalQcCount" min="0" value="' + tg.qcCount + '"></div>' +
+    '<div><label>' + esc(t('goal_qc_target')) + '</label><input type="number" id="goalQcTarget" min="1" value="' + tg.qcTarget + '"></div>' +
+    '</div><p class="small">' + esc(t('goals_note')) + '</p>' +
+    '<button class="btn" id="goalsSaveBtn" type="button">' + esc(t('save_btn')) + '</button></div>' +
     '<div class="panel"><h3>' + esc(t('pending_title')) + ' (' + state.pending.length + ')</h3>' + pendingList + '</div>' +
     '<div class="panel"><h3 id="formTitle">' + esc(t('add_title')) + '</h3>' +
     '<label>' + esc(t('edit_existing')) + '</label><select id="editSelect"><option value="">' + esc(t('choose_fish')) + '</option>' + editOptions + '</select>' +
@@ -1456,6 +1488,15 @@ function wireAdmin() {
   if (bioOffBtn) bioOffBtn.addEventListener('click', () => { bioDisable(); render(); });
   document.querySelectorAll('input[name=syncmode]').forEach((r) => r.addEventListener('change', () => { state.syncMode = r.value; saveState(); processOutbox(false); }));
   $('#backupBtn').addEventListener('click', () => doBackup($('#backupBtn')));
+  const goalsSaveBtn = $('#goalsSaveBtn');
+  if (goalsSaveBtn) goalsSaveBtn.addEventListener('click', () => {
+    const v = (id, dflt) => { const n = parseInt((document.getElementById(id) || {}).value, 10); return Number.isFinite(n) && n > 0 ? n : dflt; };
+    const qc = parseInt((document.getElementById('goalQcCount') || {}).value, 10);
+    state.statTargets = { lifelist: v('goalLife', 75), qcCount: Number.isFinite(qc) && qc >= 0 ? qc : 39, qcTarget: v('goalQcTarget', 117) };
+    state.outbox.push({ kind: 'targetsMark', value: state.statTargets });
+    saveState(); processOutbox(false);
+    adminMsg(esc(t('goals_saved')), true);
+  });
   $('#syncNow').addEventListener('click', async () => {
     await processOutbox(true); // deliberate manual action: forces an attempt even when sync is "blocked"
     if (!state.outbox.length) adminMsg(esc(t('sync_done_msg')), true);
