@@ -39,6 +39,7 @@ const T = {
     prio_full: 'You already have 5 priority quests — remove one first.',
     stats: 'Statistics',
     stat_year: 'By year', stat_place: 'By country / place', stat_water: 'Freshwater vs Saltwater', stat_family: 'By family',
+    stat_curve: 'Cumulative progress', stats_open: 'View statistics',
     search_ph: 'Search a species…',
     all_families: 'All families', all_types: 'All types', all_countries: 'All countries', all_places: 'All places', all_years: 'All years',
     f_local: 'Local name (optional)', local_name: 'Local name',
@@ -116,6 +117,7 @@ const T = {
     prio_full: 'Tu as déjà 5 quêtes prioritaires — retire-en une d\'abord.',
     stats: 'Statistiques',
     stat_year: 'Par année', stat_place: 'Par pays / lieu', stat_water: 'Eau douce vs eau salée', stat_family: 'Par famille',
+    stat_curve: 'Progression cumulée', stats_open: 'Voir les statistiques',
     search_ph: 'Rechercher une espèce…',
     all_families: 'Toutes les familles', all_types: 'Tous types', all_countries: 'Tous les pays', all_places: 'Tous les lieux', all_years: 'Toutes les années',
     f_local: 'Nom local (optionnel)', local_name: 'Nom local',
@@ -654,6 +656,7 @@ function render() {
   const v = $('#view');
   if (route.name === 'home') { v.innerHTML = homeHTML(); v.querySelectorAll('[data-fish]').forEach((el) => el.addEventListener('click', () => openPopup(el.getAttribute('data-fish')))); initCarousels(v); }
   else if (route.name === 'gallery') { v.innerHTML = galleryHTML(route.gallery); wireGallery(route.gallery); }
+  else if (route.name === 'stats') { v.innerHTML = statsPageHTML(); }
   else if (route.name === 'admin') { v.innerHTML = adminHTML(); wireAdmin(); }
   window.scrollTo(0, 0);
 }
@@ -681,6 +684,30 @@ function statsHTML() {
     statBox(t('stat_place'), group((f) => placeLabel(f))) +
     statBox(t('stat_water'), group((f) => (f.category === 'Freshwater' || f.category === 'Saltwater') ? f.category : '')) +
     statBox(t('stat_family'), group((f) => f.family)) + '</div>';
+}
+/* Cumulative curve (total caught species, year by year) + the dedicated
+   stats page. The curve is pure SVG, computed live from capture dates. */
+function cumulativeCurveHTML() {
+  const all = state.fish.filter((f) => f.status === 'caught' && f.date);
+  const years = [...new Set(all.map((f) => f.date.slice(0, 4)))].sort();
+  if (years.length < 2) return '';
+  const cum = [];
+  let n = 0;
+  years.forEach((y) => { n += all.filter((f) => f.date.slice(0, 4) === y).length; cum.push({ y, n }); });
+  const max = cum[cum.length - 1].n;
+  const Wd = 620, Ht = 260, PL = 44, PR = 16, PT = 28, PB = 32;
+  const x = (i) => PL + (i * (Wd - PL - PR)) / Math.max(1, cum.length - 1);
+  const yv = (v) => PT + (1 - v / max) * (Ht - PT - PB);
+  const pts = cum.map((p, i) => x(i).toFixed(1) + ',' + yv(p.n).toFixed(1)).join(' ');
+  const dots = cum.map((p, i) => '<circle cx="' + x(i).toFixed(1) + '" cy="' + yv(p.n).toFixed(1) + '" r="5" fill="#004393" stroke="#fff" stroke-width="2"/>' +
+    '<text x="' + x(i).toFixed(1) + '" y="' + (yv(p.n) - 12).toFixed(1) + '" text-anchor="middle" class="curve-val">' + p.n + '</text>' +
+    '<text x="' + x(i).toFixed(1) + '" y="' + (Ht - 8) + '" text-anchor="middle" class="curve-year">' + p.y + '</text>').join('');
+  return '<div class="stat-box curve-box"><h3>' + esc(t('stat_curve')) + '</h3>' +
+    '<svg class="curve" viewBox="0 0 ' + Wd + ' ' + Ht + '" role="img" aria-label="' + esc(t('stat_curve')) + '">' +
+    '<polyline points="' + pts + '" fill="none" stroke="#004393" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>' + dots + '</svg></div>';
+}
+function statsPageHTML() {
+  return '<section class="section"><h2>' + esc(t('stats')) + '</h2>' + cumulativeCurveHTML() + statsHTML() + '</section>';
 }
 /* ----- home carousels: slow continuous loop, manual drag, tap = fiche ----- */
 let carouselCleanups = [];
@@ -770,7 +797,7 @@ function homeHTML() {
     carouselHTML(latest.map((f) => carCardHTML(f)).join('')) + '</section>' +
     (prios.length ? '<section class="section"><h2>' + esc(t('prio_title')) + '</h2>' +
       carouselHTML(prios.map((f) => carCardHTML(f)).join('')) + '</section>' : '') +
-    '<section class="section"><h2>' + esc(t('stats')) + '</h2>' + statsHTML() + '</section>';
+    '<section class="section stats-teaser"><a class="btn" href="#" data-go="stats">📊 ' + esc(t('stats_open')) + '</a></section>';
 }
 
 /* ----- gallery ----- */
@@ -1568,7 +1595,7 @@ document.addEventListener('click', (e) => {
   const nav = e.target.closest('a[data-nav]');
   if (nav) { e.preventDefault(); const n = nav.getAttribute('data-nav'); go(n === 'home' ? { name: 'home' } : n === 'admin' ? { name: 'admin' } : { name: 'gallery', gallery: n }); return; }
   const g = e.target.closest('[data-go]');
-  if (g) { e.preventDefault(); const n = g.getAttribute('data-go'); go(n === 'admin' ? { name: 'admin' } : { name: 'gallery', gallery: n }); return; }
+  if (g) { e.preventDefault(); const n = g.getAttribute('data-go'); go(n === 'admin' ? { name: 'admin' } : n === 'stats' ? { name: 'stats' } : n === 'home' ? { name: 'home' } : { name: 'gallery', gallery: n }); return; }
   const qr = e.target.closest('[data-qr]');
   if (qr) { e.preventDefault(); openQr(); }
 });
