@@ -41,8 +41,8 @@ const T = {
     stat_year: 'By year', stat_place: 'By country / place', stat_water: 'Freshwater vs Saltwater', stat_family: 'By family',
     stat_curve: 'Cumulative progress', stats_open: 'View statistics',
     stat_goal_lifelist: 'Lifelist — main species', stat_goal_qc: 'Québec — freshwater fish',
-    goals_title: 'Goals', goal_life_target: 'Lifelist goal', goal_qc_count: 'Québec — species found',
-    goal_qc_target: 'Québec goal', goals_note: 'The lifelist count is automatic; the Québec count is updated here when you catch a new species from the 117.',
+    goals_title: 'Goals', goal_life_target: 'Lifelist goal',
+    goal_qc_target: 'Québec goal', goals_note: 'Both counts are automatic: the lifelist count is your main species caught, and the Québec count is the goal minus your remaining Missing QC quests.',
     goals_saved: 'Goals saved — they will apply on all your devices.', save_btn: 'Save',
     search_ph: 'Search a species…',
     all_families: 'All families', all_types: 'All types', all_countries: 'All countries', all_places: 'All places', all_years: 'All years',
@@ -123,8 +123,8 @@ const T = {
     stat_year: 'Par année', stat_place: 'Par pays / lieu', stat_water: 'Eau douce vs eau salée', stat_family: 'Par famille',
     stat_curve: 'Progression cumulée', stats_open: 'Voir les statistiques',
     stat_goal_lifelist: 'Lifelist — espèces principales', stat_goal_qc: 'Québec — poissons d\'eau douce',
-    goals_title: 'Objectifs', goal_life_target: 'Objectif lifelist', goal_qc_count: 'Québec — espèces trouvées',
-    goal_qc_target: 'Objectif Québec', goals_note: 'Le nombre de la lifelist est automatique ; le nombre Québec se met à jour ici quand tu prends une nouvelle espèce des 117.',
+    goals_title: 'Objectifs', goal_life_target: 'Objectif lifelist',
+    goal_qc_target: 'Objectif Québec', goals_note: 'Les deux nombres sont automatiques : celui de la lifelist, ce sont tes espèces principales prises ; celui du Québec, c\'est l\'objectif moins tes quêtes Missing QC restantes.',
     goals_saved: 'Objectifs enregistrés — ils s\'appliqueront sur tous tes appareils.', save_btn: 'Enregistrer',
     search_ph: 'Rechercher une espèce…',
     all_families: 'Toutes les familles', all_types: 'Tous types', all_countries: 'Tous les pays', all_places: 'Tous les lieux', all_years: 'Toutes les années',
@@ -275,8 +275,11 @@ function mapMissingRow(r) {
   };
 }
 let serverBackup = null; /* {at, count} of the last backup, shared by all devices via app_meta */
-let serverTargets = null; /* {lifelist, qcCount, qcTarget} — admin-set goals, shared the same way */
-function statTargets() { return state.statTargets || { lifelist: 75, qcCount: 39, qcTarget: 117 }; }
+let serverTargets = null; /* {lifelist, qcTarget} — admin-set goals, shared the same way */
+function statTargets() { return state.statTargets || { lifelist: 75, qcTarget: 117 }; }
+/* Québec count is automatic: goal minus the remaining Missing QC quests
+   (39 = 117 − 78, X1–X4 included — verified against his Excel/checklist). */
+function qcCount() { return Math.max(0, statTargets().qcTarget - missingAll().length); }
 async function fetchLiveDataset() {
   const species = await sbGet('/rest/v1/species?select=*');
   const missing = await sbGet('/rest/v1/missing_species?select=*');
@@ -731,7 +734,7 @@ function goalBarHTML(label, count, target) {
 function statsPageHTML() {
   const tg = statTargets();
   return '<section class="section"><h2>' + esc(t('stats')) + '</h2>' +
-    '<div class="stats-grid">' + goalBarHTML(t('stat_goal_lifelist'), caught('main').length, tg.lifelist) + goalBarHTML(t('stat_goal_qc'), tg.qcCount, tg.qcTarget) + '</div>' +
+    '<div class="stats-grid">' + goalBarHTML(t('stat_goal_lifelist'), caught('main').length, tg.lifelist) + goalBarHTML(t('stat_goal_qc'), qcCount(), tg.qcTarget) + '</div>' +
     cumulativeCurveHTML() + statsHTML() + '</section>';
 }
 /* ----- home carousels: slow continuous loop, manual drag, tap = fiche ----- */
@@ -1305,7 +1308,6 @@ function adminHTML() {
     '<div class="small" id="backupInfo" style="margin-top:8px">' + backupInfoHTML() + '</div></div>' +
     '<div class="panel"><h3>' + esc(t('goals_title')) + '</h3><div class="form-grid">' +
     '<div><label>' + esc(t('goal_life_target')) + '</label><input type="number" id="goalLife" min="1" value="' + tg.lifelist + '"></div>' +
-    '<div><label>' + esc(t('goal_qc_count')) + '</label><input type="number" id="goalQcCount" min="0" value="' + tg.qcCount + '"></div>' +
     '<div><label>' + esc(t('goal_qc_target')) + '</label><input type="number" id="goalQcTarget" min="1" value="' + tg.qcTarget + '"></div>' +
     '</div><p class="small">' + esc(t('goals_note')) + '</p>' +
     '<button class="btn" id="goalsSaveBtn" type="button">' + esc(t('save_btn')) + '</button></div>' +
@@ -1491,8 +1493,7 @@ function wireAdmin() {
   const goalsSaveBtn = $('#goalsSaveBtn');
   if (goalsSaveBtn) goalsSaveBtn.addEventListener('click', () => {
     const v = (id, dflt) => { const n = parseInt((document.getElementById(id) || {}).value, 10); return Number.isFinite(n) && n > 0 ? n : dflt; };
-    const qc = parseInt((document.getElementById('goalQcCount') || {}).value, 10);
-    state.statTargets = { lifelist: v('goalLife', 75), qcCount: Number.isFinite(qc) && qc >= 0 ? qc : 39, qcTarget: v('goalQcTarget', 117) };
+    state.statTargets = { lifelist: v('goalLife', 75), qcTarget: v('goalQcTarget', 117) };
     state.outbox.push({ kind: 'targetsMark', value: state.statTargets });
     saveState(); processOutbox(false);
     adminMsg(esc(t('goals_saved')), true);
