@@ -81,7 +81,7 @@ const T = {
     sync_done_msg: 'Sync done — the site copy is now up to date.',
     sync_queued_msg: 'Saved on this device — it will sync when sign-in, connection and the data control allow it.',
     add_title: 'Add a fish', edit_title: 'Edit a fish',
-    f_gallery: 'Gallery', f_status: 'Add as', st_pending: 'Pending confirmation (no number yet)', st_caught: 'Confirmed (gets the next number)',
+    f_gallery: 'Gallery', f_status: 'Add as', st_pending: 'Pending confirmation (shown as Unconfirmed)', st_caught: 'Confirmed (gets the next number)',
     f_en: 'English name', f_fr: 'French name', f_sci: 'Scientific name', f_family: 'Family',
     f_water: 'Water type', f_date: 'Capture date', f_country: 'Country', f_place: 'Place (province / state / region)',
     f_notes: 'Notes', f_inat: 'iNaturalist link (optional)', f_photo: 'Photo — pick from the device gallery',
@@ -91,9 +91,11 @@ const T = {
     choose_fish: 'Choose a fish…', f_num: 'Number (#) — change ONLY to fix a validation-order mistake: the fish is inserted there and higher numbers shift up by one',
     dup_title: 'Duplicate warning', dup_msg: 'This scientific name already exists in your list: ',
     dup_ask: 'Save anyway?', pending_title: 'Pending confirmation',
-    pending_empty: 'Nothing pending. New catches you add as "pending" will wait here, unnumbered and unpublished, until you confirm the identification.',
+    pending_empty: 'Nothing pending. New catches you add as "pending" will wait here, unnumbered and marked "Unconfirmed" on the site, until you confirm the identification.',
     confirm_btn: 'Confirm (assign next #)', delete_btn: 'Delete',
-    saved_pending: 'Saved as pending — no number, not published, until confirmed.',
+    unconfirmed: 'Unconfirmed',
+    unconfirmed_note: 'Identification awaiting confirmation — the number and species may still change.',
+    saved_pending: 'Saved as pending — no number, shown as "Unconfirmed" on the site until confirmed.',
     saved_caught: 'Saved and published with #', transferred: 'Transferred! It left Missing QC.',
     updated: 'Fish updated.',
     del_btn: 'Delete this fish', del_intro: 'You are about to permanently delete:',
@@ -163,7 +165,7 @@ const T = {
     sync_done_msg: 'Synchro terminée — la copie du site est maintenant à jour.',
     sync_queued_msg: "Enregistré sur cet appareil — la synchro se fera quand la connexion, le compte admin et le contrôle des données le permettront.",
     add_title: 'Ajouter un poisson', edit_title: 'Modifier un poisson',
-    f_gallery: 'Galerie', f_status: 'Ajouter comme', st_pending: 'En attente de confirmation (pas encore de numéro)', st_caught: 'Confirmé (reçoit le prochain numéro)',
+    f_gallery: 'Galerie', f_status: 'Ajouter comme', st_pending: 'En attente de confirmation (affiché Non confirmé)', st_caught: 'Confirmé (reçoit le prochain numéro)',
     f_en: 'Nom anglais', f_fr: 'Nom français', f_sci: 'Nom scientifique', f_family: 'Famille',
     f_water: "Type d'eau", f_date: 'Date de capture', f_country: 'Pays', f_place: 'Lieu (province / État / région)',
     f_notes: 'Notes', f_inat: 'Lien iNaturalist (optionnel)', f_photo: 'Photo — choisir dans la galerie du téléphone',
@@ -173,9 +175,11 @@ const T = {
     choose_fish: 'Choisir un poisson…', f_num: "Numéro (#) — à changer SEULEMENT pour corriger une erreur d'ordre de validation : le poisson s'insère là et les numéros plus élevés montent d'une coche",
     dup_title: 'Alerte doublon', dup_msg: 'Ce nom scientifique existe déjà dans ta liste : ',
     dup_ask: 'Enregistrer quand même ?', pending_title: 'En attente de confirmation',
-    pending_empty: "Rien en attente. Les nouvelles prises ajoutées « en attente » resteront ici, sans numéro et non publiées, jusqu'à confirmation de l'identification.",
+    pending_empty: "Rien en attente. Les nouvelles prises ajoutées « en attente » resteront ici, sans numéro et marquées « Non confirmé » sur le site, jusqu'à confirmation de l'identification.",
     confirm_btn: 'Confirmer (donner le prochain #)', delete_btn: 'Supprimer',
-    saved_pending: "Enregistré en attente — pas de numéro, non publié, jusqu'à confirmation.",
+    unconfirmed: 'Non confirmé',
+    unconfirmed_note: 'Identification en attente de confirmation — le numéro et l’espèce peuvent encore changer.',
+    saved_pending: "Enregistré en attente — pas de numéro, affiché « Non confirmé » sur le site jusqu'à confirmation.",
     saved_caught: 'Enregistré et publié avec le #', transferred: 'Transféré ! Il a quitté les Manquants QC.',
     updated: 'Poisson mis à jour.',
     del_btn: 'Effacer ce poisson', del_intro: 'Tu es sur le point d’effacer définitivement :',
@@ -274,6 +278,22 @@ function mapMissingRow(r) {
     suggested_place: '', when: ''
   };
 }
+/* Pending catches published on the site as "Unconfirmed": same columns as
+   species, minus the capture number (assigned only on confirmation). */
+function mapPendingRow(r) {
+  const gallery = (r.category === 'hybrid' || r.category === 'hybrids') ? 'hybrids' : (r.category || 'main');
+  const water = r.water_type ? (r.water_type.charAt(0).toUpperCase() + r.water_type.slice(1)) : '';
+  let country = r.country || '', place = r.place || '';
+  if (!country && !place && r.location) { const p = parseLocation(r.location); country = p.country; place = p.place; }
+  return {
+    id: 'dbp-' + r.id, dbId: r.id, num: null, quest: null,
+    gallery, category: gallery === 'subspecies' ? 'Variant' : water, water: water || 'Freshwater',
+    name_en: r.english_name || '', name_fr: r.french_name || '', local: r.local_name || '', scientific: r.scientific_name || '',
+    family: r.family || '', date: r.capture_date || '', country, place,
+    notes: r.notes || '', photo: r.image_url || null, inaturalist: r.inaturalist_url || '',
+    status: 'pending', suggested_place: '', when: ''
+  };
+}
 let serverBackup = null; /* {at, count} of the last backup, shared by all devices via app_meta */
 let serverTargets = null; /* {lifelist, qcTarget} — admin-set goals, shared the same way */
 function statTargets() { return state.statTargets || { lifelist: 75, qcTarget: 117 }; }
@@ -283,6 +303,10 @@ function qcCount() { return Math.max(0, statTargets().qcTarget - missingAll().le
 async function fetchLiveDataset() {
   const species = await sbGet('/rest/v1/species?select=*');
   const missing = await sbGet('/rest/v1/missing_species?select=*');
+  /* Pending catches, published as "Unconfirmed" (a new table may not
+     exist on an old deploy: an empty list then, never a crash). */
+  let pend = [];
+  try { pend = await sbGet('/rest/v1/pending_species?select=*'); } catch (e) { pend = []; }
   try {
     const meta = await sbGet('/rest/v1/app_meta?select=*');
     const row = (meta || []).find((m) => m.key === 'last_backup');
@@ -290,7 +314,7 @@ async function fetchLiveDataset() {
     const trow = (meta || []).find((m) => m.key === 'stat_targets');
     serverTargets = trow && trow.value ? trow.value : null;
   } catch (e) { /* app_meta unavailable: keep the local markers */ }
-  return { fish: species.map(mapSpeciesRow).concat(missing.map(mapMissingRow)) };
+  return { fish: species.map(mapSpeciesRow).concat((pend || []).map(mapPendingRow)).concat(missing.map(mapMissingRow)) };
 }
 
 /* ----- auth (Supabase Auth, email + password) ----- */
@@ -383,6 +407,13 @@ function speciesPayload(f) {
     inaturalist_url: f.inaturalist || null
   };
 }
+/* Same payload as a confirmed catch, without the capture number — the
+   pending_species table has no capture_number column. */
+function pendingPayload(f) {
+  const p = speciesPayload(f);
+  delete p.capture_number;
+  return p;
+}
 async function sbWrite(method, path, body, prefer) {
   if (!(await sbEnsureToken())) throw new Error('not signed in');
   const headers = sbHeaders(session.access_token);
@@ -410,6 +441,13 @@ function queueInsert(localFish, opts) {
   const photoDataUrl = isDataUrl(snap.photo) ? snap.photo : null;
   if (photoDataUrl) snap.photo = null;
   queueOp({ kind: 'insert', localId: localFish.id, fish: snap, photoDataUrl, transferDbId: opts.transferDbId || null, insertedDbId: null });
+}
+function queueInsertPending(localFish, opts) {
+  opts = opts || {};
+  const snap = Object.assign({}, localFish);
+  const photoDataUrl = isDataUrl(snap.photo) ? snap.photo : null;
+  if (photoDataUrl) snap.photo = null;
+  queueOp({ kind: 'insertPending', localId: localFish.id, fish: snap, photoDataUrl, transferDbId: opts.transferDbId || null, insertedDbId: null });
 }
 function queueUpdate(fish, snap, photoDataUrl, shiftOps) {
   (shiftOps || []).forEach((op) => state.outbox.push(op));
@@ -487,23 +525,64 @@ async function executeOp(op) {
     await sbWrite('PATCH', '/rest/v1/missing_species?id=eq.' + op.dbId, { is_priority: op.value });
   } else if (op.kind === 'patchNum') {
     await sbWrite('PATCH', '/rest/v1/species?id=eq.' + op.dbId, { capture_number: op.num });
+  } else if (op.kind === 'insertPending') {
+    /* Publish a pending catch as "Unconfirmed": same photo-first invariant
+       as a confirmed insert, then the pending row (no capture number). */
+    if (!op.insertedDbId) {
+      const f = Object.assign({}, op.fish);
+      if (op.photoDataUrl) f.photo = await uploadPhoto(op.photoDataUrl);
+      const rows = await sbWrite('POST', '/rest/v1/pending_species', pendingPayload(f), 'return=representation');
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (row && row.id) {
+        op.insertedDbId = row.id;
+        const local = state.fish.find((x) => x.id === op.localId);
+        if (local) { local.dbId = row.id; local.id = 'dbp-' + row.id; if (row.image_url) local.photo = row.image_url; }
+        saveState();
+      }
+    }
+    if (op.transferDbId) await sbWrite('DELETE', '/rest/v1/missing_species?id=eq.' + op.transferDbId, null);
+  } else if (op.kind === 'confirmPending') {
+    /* Confirmation moves a pending row to the species table: insert first
+       (recorded in insertedDbId so a retry never duplicates it), then
+       delete the pending row. */
+    if (!op.insertedDbId) {
+      const f = Object.assign({}, op.fish);
+      if (op.photoDataUrl) f.photo = await uploadPhoto(op.photoDataUrl);
+      const rows = await sbWrite('POST', '/rest/v1/species', speciesPayload(f), 'return=representation');
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (row && row.id) {
+        op.insertedDbId = row.id;
+        const local = state.fish.find((x) => x.id === op.localId);
+        if (local) { local.dbId = row.id; local.id = 'db-' + row.id; if (row.image_url) local.photo = row.image_url; }
+        saveState();
+      }
+    }
+    await sbWrite('DELETE', '/rest/v1/pending_species?id=eq.' + op.dbId, null);
+  } else if (op.kind === 'updatePending') {
+    const f = Object.assign({}, op.fish);
+    if (op.photoDataUrl) f.photo = await uploadPhoto(op.photoDataUrl);
+    await sbWrite('PATCH', '/rest/v1/pending_species?id=eq.' + op.dbId, pendingPayload(f));
+  } else if (op.kind === 'deletePending') {
+    await sbWrite('DELETE', '/rest/v1/pending_species?id=eq.' + op.dbId, null);
+    if (op.photoFile) await deletePhotoFile(op.photoFile);
   } else if (op.kind === 'delete') {
     /* The species row is the source of truth: if this DELETE fails, the
        throw leaves the op queued and surfaces a sync error (the photo
        cleanup below is then never attempted). */
     await sbWrite('DELETE', '/rest/v1/species?id=eq.' + op.dbId, null);
-    if (op.photoFile) {
-      /* Best-effort photo cleanup, only after the row is gone. Any
-         failure is swallowed on purpose: an orphaned image file harms
-         nothing, and it must never fail the op or raise a sync error. */
-      try {
-        if (await sbEnsureToken()) {
-          await fetchT(SB_URL + '/storage/v1/object/species-images',
-            { method: 'DELETE', headers: sbHeaders(session.access_token), body: JSON.stringify({ prefixes: [op.photoFile] }) }, 20000);
-        }
-      } catch (e) { /* orphaned photo file: harmless */ }
-    }
+    if (op.photoFile) await deletePhotoFile(op.photoFile);
   }
+}
+/* Best-effort photo cleanup, only after the row is gone. Any failure is
+   swallowed on purpose: an orphaned image file harms nothing, and it must
+   never fail the op or raise a sync error. */
+async function deletePhotoFile(name) {
+  try {
+    if (await sbEnsureToken()) {
+      await fetchT(SB_URL + '/storage/v1/object/species-images',
+        { method: 'DELETE', headers: sbHeaders(session.access_token), body: JSON.stringify({ prefixes: [name] }) }, 20000);
+    }
+  } catch (e) { /* orphaned photo file: harmless */ }
 }
 function mayAutoSync() {
   if (!session || !adminVerified) return false;
@@ -542,11 +621,12 @@ async function processOutbox(force) {
 }
 async function refreshDataset() {
   const live = await fetchLiveDataset();
-  const unsynced = state.fish.filter((f) => f.status === 'caught' && !f.dbId && String(f.id).indexOf('local-') === 0);
+  const unsynced = state.fish.filter((f) => (f.status === 'caught' || f.status === 'pending') && !f.dbId && String(f.id).indexOf('local-') === 0);
   /* A fish whose deletion is still queued must not resurrect from the
      live copy while its delete waits to sync. */
   const pendingDeletes = new Set(state.outbox.filter((o) => o.kind === 'delete').map((o) => o.dbId));
-  state.fish = live.fish.filter((f) => !pendingDeletes.has(f.dbId)).concat(unsynced);
+  const pendingPendingDeletes = new Set(state.outbox.filter((o) => o.kind === 'deletePending').map((o) => o.dbId));
+  state.fish = live.fish.filter((f) => !pendingDeletes.has(f.dbId) && !(f.status === 'pending' && pendingPendingDeletes.has(f.dbId))).concat(unsynced);
   state.dataSource = 'live';
   /* The shared backup marker wins when it is the newest: one backup on any
      device clears the reminder dot on every device. */
@@ -647,7 +727,7 @@ function applyStaticI18n() {
 function updateAdminBadge() {
   const b = document.getElementById('adminBadge');
   if (!b) return;
-  const n = state ? (state.pending.length + state.outbox.length) : 0;
+  const n = state ? (state.pending.length + state.fish.filter((f) => f.status === 'pending').length + state.outbox.length) : 0;
   const due = n === 0 && state && backupDue();
   b.hidden = n === 0 && !due;
   b.textContent = n > 0 ? String(n) : (due ? '•' : '');
@@ -833,7 +913,10 @@ const GAL_TITLE = { main: 'nav_main', subspecies: 'nav_sub', hybrids: 'nav_hyb',
 const GAL_DESC = { main: 'gal_main_d', subspecies: 'gal_sub_d', hybrids: 'gal_hyb_d', missing: 'gal_missing_d' };
 let galFilters = { q: '', family: '', type: '', country: '', place: '', year: '', sort: 'number', dir: 'desc' };
 function galleryItems(gallery) {
-  return gallery === 'missing' ? missingAll() : caught(gallery);
+  if (gallery === 'missing') return missingAll();
+  /* Unconfirmed catches sit in their gallery too (badged), ahead of the
+     confirmed ones — they never count in the counters or the stats. */
+  return caught(gallery).concat(state.fish.filter((f) => f.gallery === gallery && f.status === 'pending'));
 }
 function galleryHTML(gallery) {
   const items = galleryItems(gallery);
@@ -931,6 +1014,9 @@ function filteredItems(gallery) {
   /* Missing QC: the owner's priority quests always sit on top of the
      gallery; the chosen sort still applies inside each group. */
   if (gallery === 'missing') items = items.filter((f) => f.priority).concat(items.filter((f) => !f.priority));
+  /* Unconfirmed catches always sit on top of their gallery, whatever the
+     sort — they are the ones waiting for an identification. */
+  else items = items.filter((f) => f.status === 'pending').concat(items.filter((f) => f.status !== 'pending'));
   return items;
 }
 function photoHTML(f, cls) {
@@ -938,10 +1024,12 @@ function photoHTML(f, cls) {
   return '<div class="placeholder"><img src="ozbak-logo.png" alt=""><span class="sci">' + esc(f.scientific) + '</span></div>';
 }
 function cardHTML(f, gallery) {
-  const badge = gallery === 'missing' ? ('#' + esc(f.quest)) : ('#' + f.num);
+  const isPending = f.status === 'pending';
+  const badge = gallery === 'missing' ? ('#' + esc(f.quest)) : (isPending ? '?' : ('#' + f.num));
   const wlab = f.gallery === 'subspecies' ? (f.water || 'Freshwater') : (f.category || '—');
-  let h = '<div><button class="card" data-fish="' + f.id + '"><span class="ph">' + photoHTML(f) +
+  let h = '<div><button class="card' + (isPending ? ' unc' : '') + '" data-fish="' + f.id + '"><span class="ph">' + photoHTML(f) +
     '<span class="badge">' + badge + '</span>' + (f.photo ? '<span class="sci">' + esc(f.scientific) + '</span>' : '') +
+    (isPending ? '<span class="badge unc">' + esc(t('unconfirmed')) + '</span>' : '') +
     (gallery === 'missing' && f.priority ? '<span class="prio">' + esc(t('priority')) + '</span>' : '') + '</span>' +
     '<span class="body" style="display:block"><span class="primary" style="display:block">' + esc(primaryName(f)) + '</span>' +
     '<span class="secondary" style="display:block">' + esc(secondaryName(f)) + '</span>' +
@@ -951,11 +1039,12 @@ function cardHTML(f, gallery) {
   return h + '</div>';
 }
 function rowHTML(f, gallery) {
-  const badge = gallery === 'missing' ? ('#' + esc(f.quest)) : ('#' + f.num);
+  const isPending = f.status === 'pending';
+  const badge = gallery === 'missing' ? ('#' + esc(f.quest)) : (isPending ? '?' : ('#' + f.num));
   const thumb = f.photo ? '<img class="thumb" src="' + f.photo + '" alt="">' : '<span class="thumb ph"><img src="ozbak-logo.png" alt=""></span>';
   let h = '<div><button class="rowcard" data-fish="' + f.id + '">' + thumb +
     '<span class="mid"><span class="primary">' + esc(primaryName(f)) + '</span><br><span class="sci">' + esc(f.scientific) + '</span><br>' +
-    '<span class="sub">' + esc([placeLabel(f), f.date].filter(Boolean).join(' • ')) + '</span></span>' +
+    '<span class="sub">' + esc([placeLabel(f), f.date, isPending ? t('unconfirmed') : ''].filter(Boolean).join(' • ')) + '</span></span>' +
     '<span class="right"><span class="num">' + badge + '</span><br><span class="fam">' + esc(f.family) + '</span></span></button>';
   if (gallery === 'missing' && adminUnlocked) h += '<button class="transfer-btn" data-transfer="' + f.id + '">' + esc(t('transfer')) + '</button>';
   return h + '</div>';
@@ -1012,7 +1101,9 @@ function openPopup(id) {
   const f = state.fish.find((x) => x.id === id) || state.pending.find((x) => x.id === id);
   if (!f) return;
   const isMissing = f.status === 'missing';
-  const title = isMissing ? ('#' + esc(f.quest) + ' · ' + esc(primaryName(f))) : ('#' + f.num + ' ' + esc(primaryName(f)));
+  const isPending = f.status === 'pending';
+  const title = isMissing ? ('#' + esc(f.quest) + ' · ' + esc(primaryName(f)))
+    : (isPending ? esc(primaryName(f)) : ('#' + f.num + ' ' + esc(primaryName(f))));
   const waterLabel = f.gallery === 'subspecies' ? (f.water || 'Freshwater') : (f.category || '—');
   const big = f.photo ? '<img class="bigphoto" src="' + f.photo + '" alt="' + esc(primaryName(f)) + '">'
     : '<div class="placeholder bigplaceholder"><img src="ozbak-logo.png" alt=""><span class="sci">' + esc(f.scientific) + '</span></div>';
@@ -1027,7 +1118,7 @@ function openPopup(id) {
       '<div><dt>' + esc(t('country')) + ':</dt><dd>' + esc(f.country || '—') + '</dd></div>' +
       '<div><dt>' + esc(t('place')) + ':</dt><dd>' + esc(f.place || '—') + '</dd></div>';
   }
-  $('#popupContent').innerHTML = '<h2>' + title + '</h2>' + big +
+  $('#popupContent').innerHTML = '<h2>' + title + (isPending ? ' <span class="pill-unc">' + esc(t('unconfirmed')) + '</span>' : '') + '</h2>' + big +
     '<div class="cols"><div><h3>' + esc(t('identification')) + '</h3><dl>' +
     '<div><dt>' + esc(t('scientific')) + ':</dt><dd><i>' + esc(f.scientific) + '</i></dd></div>' +
     '<div><dt>' + esc(t('english')) + ':</dt><dd>' + esc(f.name_en) + '</dd></div>' +
@@ -1039,6 +1130,7 @@ function openPopup(id) {
     (f.inaturalist ? '<p><a href="' + esc(f.inaturalist) + '" target="_blank" rel="noopener">' + esc(t('inat')) + '</a></p>' : '') +
     '</div></div>' +
     (f.notes ? '<h3 style="margin-top:16px">' + esc(t('notes')) + '</h3><p class="notes">' + esc(f.notes) + '</p>' : '') +
+    (isPending ? '<p class="unconfirmed-note">' + esc(t('unconfirmed_note')) + '</p>' : '') +
     '<button class="share-btn" id="shareBtn">↗ ' + esc(t('share')) + '</button>' +
     (isMissing ? '' : '<button class="share-btn" id="cardBtn" style="margin-left:8px">🃏 ' + esc(t('card_btn')) + '</button>') +
     (isMissing && adminUnlocked && f.dbId ? '<button class="share-btn" id="prioBtn" style="margin-left:8px">' + esc(f.priority ? t('prio_remove') : t('prio_add')) + '</button>' : '');
@@ -1057,7 +1149,8 @@ function openQr() {
 }
 function shareFish(f) {
   const url = location.href.split('#')[0] + '#fish=' + f.id;
-  const text = '#' + (f.num || f.quest || '') + ' ' + primaryName(f) + ' (' + f.scientific + ') — Ozbak Lifelist';
+  const tag = f.num != null ? ('#' + f.num) : (f.quest ? ('#' + f.quest) : t('unconfirmed'));
+  const text = tag + ' ' + primaryName(f) + ' (' + f.scientific + ') — Ozbak Lifelist';
   if (navigator.share) navigator.share({ title: 'Ozbak Lifelist', text, url }).catch(() => {});
   else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => alert(url));
   else prompt('Copy this link / Copiez ce lien :', url);
@@ -1108,7 +1201,17 @@ async function makeCard(f) {
   ctx.fillText(st.label, 84, 196);
   ctx.beginPath(); ctx.arc(W - 161, 131, 57, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
   ctx.fillStyle = st.accent; ctx.font = '700 44px Arial, sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('#' + (f.num || ''), W - 161, 147); ctx.textAlign = 'left';
+  ctx.fillText(f.status === 'pending' ? '?' : ('#' + (f.num || '')), W - 161, 147); ctx.textAlign = 'left';
+  /* The card is English-only by design: an unconfirmed catch gets a gold
+     UNCONFIRMED pill under the gallery label; once confirmed, the same
+     button regenerates the classic card without it. */
+  if (f.status === 'pending') {
+    const lw = ctx.measureText(st.label).width;
+    ctx.font = '700 30px Arial, sans-serif';
+    const uw = ctx.measureText('UNCONFIRMED').width + 44;
+    rr(ctx, 84 + lw + 24, 164, uw, 44, 22); ctx.fillStyle = '#E8B84B'; ctx.fill();
+    ctx.fillStyle = '#072036'; ctx.fillText('UNCONFIRMED', 84 + lw + 46, 195);
+  }
   // scientific + family
   ctx.fillStyle = '#5A697D'; ctx.font = 'italic 34px Georgia, serif';
   const sci = f.scientific || '';
@@ -1281,11 +1384,14 @@ function adminHTML() {
   const syncLabel = pendingCount ? esc(t('pending_sync')) + ': ' + pendingCount
     : (isOffline ? esc(t('sync_offline')) : esc(t('synchronized')));
   const radio = (val, label) => '<label><input type="radio" name="syncmode" value="' + val + '"' + (state.syncMode === val ? ' checked' : '') + '> ' + esc(label) + '</label>';
-  const editOptions = state.fish.filter((f) => f.status === 'caught')
+  const editOptions = state.fish.filter((f) => f.status === 'caught' || f.status === 'pending')
     .sort((a, b) => a.gallery.localeCompare(b.gallery) || (a.num || 0) - (b.num || 0))
-    .map((f) => '<option value="' + f.id + '">' + esc(f.gallery) + ' #' + f.num + ' — ' + esc(f.name_en || f.scientific) + ' (' + esc(f.scientific) + ')</option>').join('');
-  const pendingList = state.pending.length
-    ? state.pending.map((f) => '<div class="pending-item"><span><b>' + esc(primaryName(f)) + '</b> · <i>' + esc(f.scientific) + '</i><br><span class="small">' + esc([f.gallery, f.date, placeLabel(f)].filter(Boolean).join(' • ')) + '</span></span>' +
+    .map((f) => '<option value="' + f.id + '">' + esc(f.gallery) + ' ' + (f.status === 'pending' ? '· ' + esc(t('unconfirmed')) : '#' + f.num) + ' — ' + esc(f.name_en || f.scientific) + ' (' + esc(f.scientific) + ')</option>').join('');
+  /* Pending list: published pending catches (state.fish) plus any legacy
+     local-only pending items (state.pending, from older versions). */
+  const pendItems = state.fish.filter((f) => f.status === 'pending').concat(state.pending);
+  const pendingList = pendItems.length
+    ? pendItems.map((f) => '<div class="pending-item"><span><b>' + esc(primaryName(f)) + '</b> · <i>' + esc(f.scientific) + '</i><br><span class="small">' + esc([f.gallery, f.date, placeLabel(f)].filter(Boolean).join(' • ')) + '</span></span>' +
       '<span><button class="btn small" data-confirm-pending="' + f.id + '">' + esc(t('confirm_btn')) + '</button> ' +
       '<button class="btn small danger" data-delete-pending="' + f.id + '">' + esc(t('delete_btn')) + '</button></span></div>').join('')
     : '<p class="small">' + esc(t('pending_empty')) + '</p>';
@@ -1506,15 +1612,45 @@ function wireAdmin() {
   $('#signOutBtn').addEventListener('click', () => { sbSignOut(); render(); });
   $('#refreshBtn').addEventListener('click', async () => { try { await refreshDataset(); saveState(); } catch (e) {} render(); });
   document.querySelectorAll('[data-confirm-pending]').forEach((b) => b.addEventListener('click', () => {
-    const i = state.pending.findIndex((x) => x.id === b.getAttribute('data-confirm-pending')); if (i < 0) return;
-    const f = state.pending.splice(i, 1)[0];
-    f.status = 'caught'; f.num = nextNum(f.gallery); state.fish.push(f);
-    queueInsert(f, { transferDbId: f.transferDbId || null }); delete f.transferDbId;
+    const id = b.getAttribute('data-confirm-pending');
+    const li = state.pending.findIndex((x) => x.id === id);
+    if (li >= 0) { /* legacy local-only pending item: the old path */
+      const f = state.pending.splice(li, 1)[0];
+      f.status = 'caught'; f.num = nextNum(f.gallery); state.fish.push(f);
+      queueInsert(f, { transferDbId: f.transferDbId || null }); delete f.transferDbId;
+      saveState(); render();
+      adminMsg(esc(t('saved_caught')) + f.num, true);
+      return;
+    }
+    const f = state.fish.find((x) => x.id === id && x.status === 'pending');
+    if (!f) return;
+    f.status = 'caught'; f.num = nextNum(f.gallery);
+    if (f.dbId) {
+      /* Published pending row: move it to the species table (insert,
+         then delete the pending row — one op, retry-safe). */
+      const snap = Object.assign({}, f);
+      const photoDataUrl = isDataUrl(snap.photo) ? snap.photo : null;
+      if (photoDataUrl) snap.photo = null;
+      queueOp({ kind: 'confirmPending', localId: f.id, dbId: f.dbId, fish: snap, photoDataUrl, insertedDbId: null });
+    } else {
+      /* Not published yet: drop its queued pending insert, insert as a
+         confirmed catch instead. */
+      state.outbox = state.outbox.filter((o) => !(o.kind === 'insertPending' && o.localId === f.id));
+      queueInsert(f, {});
+    }
     saveState(); render();
     adminMsg(esc(t('saved_caught')) + f.num, true);
   }));
   document.querySelectorAll('[data-delete-pending]').forEach((b) => b.addEventListener('click', () => {
-    state.pending = state.pending.filter((x) => x.id !== b.getAttribute('data-delete-pending')); saveState(); render();
+    const id = b.getAttribute('data-delete-pending');
+    const li = state.pending.findIndex((x) => x.id === id);
+    if (li >= 0) { state.pending.splice(li, 1); saveState(); render(); return; }
+    const f = state.fish.find((x) => x.id === id && x.status === 'pending');
+    if (!f) return;
+    state.fish = state.fish.filter((x) => x.id !== f.id);
+    if (f.dbId) queueOp({ kind: 'deletePending', dbId: f.dbId, photoFile: storageFileNameFromUrl(f.photo) });
+    else state.outbox = state.outbox.filter((o) => !(o.kind === 'insertPending' && o.localId === f.id));
+    saveState(); render();
   }));
   const editSel = $('#editSelect');
   editSel.addEventListener('change', () => {
@@ -1522,11 +1658,15 @@ function wireAdmin() {
     if (!f) { editId = null; $('#numRow').hidden = true; $('#cancelEdit').hidden = true; $('#deleteZone').hidden = true; return; }
     editId = f.id; transferFromId = null; fillForm(f);
     $('#af_gallery').value = f.gallery; $('#af_gallery').disabled = true;
-    $('#af_num').value = f.num; $('#numRow').hidden = false; $('#cancelEdit').hidden = false;
-    $('#formTitle').textContent = t('edit_title') + ' — #' + f.num + ' ' + primaryName(f);
+    $('#af_status').value = f.status === 'pending' ? 'pending' : 'caught';
+    $('#af_num').value = f.num || '';
+    /* A pending catch has no number: no number row, and no number-code
+       delete zone (its deletion lives in the pending list). */
+    $('#numRow').hidden = f.status === 'pending'; $('#cancelEdit').hidden = false;
+    $('#formTitle').textContent = t('edit_title') + ' — ' + (f.status === 'pending' ? '' : '#' + f.num + ' ') + primaryName(f);
     /* Reveal the delete danger zone for this fish, with its confirmation
        block reset (hidden, code cleared, final button disarmed). */
-    $('#deleteZone').hidden = false;
+    $('#deleteZone').hidden = f.status === 'pending';
     $('#deleteConfirm').hidden = true;
     $('#deleteCode').value = ''; $('#deleteFinalBtn').disabled = true;
     $('#deleteFishName').innerHTML = '<b>#' + f.num + '</b> — ' + esc(f.name_fr || '') + ' / ' + esc(f.name_en || '') + ' <i>(' + esc(f.scientific) + ')</i>';
@@ -1587,6 +1727,20 @@ function wireAdmin() {
       const peersBefore = state.fish.filter((x) => x.gallery === f.gallery && x.status === 'caught')
         .map((x) => ({ id: x.id, dbId: x.dbId, num: x.num }));
       Object.assign(f, base);
+      if (f.status === 'pending') {
+        /* Editing a pending catch: no number, no shift — just patch the
+           pending row (or fold the edit into its queued insert). */
+        const photoDataUrl = isDataUrl(formPhoto) ? formPhoto : null;
+        const snap = Object.assign({}, f); if (photoDataUrl) snap.photo = null;
+        if (f.dbId) {
+          state.outbox.push({ kind: 'updatePending', dbId: f.dbId, fish: snap, photoDataUrl: photoDataUrl || null });
+        } else {
+          const q = state.outbox.find((o) => o.kind === 'insertPending' && o.localId === f.id);
+          if (q) { Object.assign(q.fish, snap); if (photoDataUrl) { q.photoDataUrl = photoDataUrl; q.fish.photo = null; } }
+        }
+        saveState(); processOutbox(false);
+        editId = null; render(); adminMsg(esc(t('updated')), true); return;
+      }
       const wanted = parseInt($('#af_num').value, 10);
       if (wanted && wanted !== f.num) {
         const peers = state.fish.filter((x) => x.gallery === f.gallery && x.status === 'caught').sort((a, b) => a.num - b.num);
@@ -1619,7 +1773,11 @@ function wireAdmin() {
       if (tf) transferDbId = tf.dbId || null;
       state.fish = state.fish.filter((x) => x.id !== transferFromId);
     }
-    if (asPending) { if (wasTransfer) nf.transferDbId = transferDbId; state.pending.push(nf); }
+    if (asPending) {
+      /* Published as "Unconfirmed": it joins the gallery at once (badged),
+         and the pending insert queues for sync like any other write. */
+      state.fish.push(nf); queueInsertPending(nf, { transferDbId });
+    }
     else { nf.num = nextNum(gallery); state.fish.push(nf); queueInsert(nf, { transferDbId }); }
     transferFromId = null; saveState(); render();
     adminMsg(esc(wasTransfer ? t('transferred') + ' ' : '') + esc(asPending ? t('saved_pending') : t('saved_caught') + nf.num), true);

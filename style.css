@@ -114,8 +114,14 @@ main{max-width:1150px;margin:0 auto;padding:20px 16px 40px}
   text-shadow:0 1px 5px rgba(0,0,0,.75);z-index:2}
 .badge{position:absolute;top:10px;left:10px;z-index:2;background:var(--blue);color:#fff;
   font-weight:800;border-radius:999px;padding:4px 11px;font-size:.85rem}
+.badge.unc{left:auto;right:10px;background:#E8B84B;color:#072036}
 .prio{position:absolute;top:10px;right:10px;z-index:2;background:#f5a623;color:#fff;
   font-weight:800;border-radius:999px;padding:4px 11px;font-size:.8rem}
+.card.unc{border:2px solid #E8B84B}
+.pill-unc{display:inline-block;background:#E8B84B;color:#072036;border-radius:999px;
+  padding:4px 12px;font-size:.85rem;font-weight:800;vertical-align:middle}
+.unconfirmed-note{background:#FFF8DC;border:1px solid #E8B84B;border-radius:10px;
+  padding:10px 14px;margin-top:16px}
 .card .body{padding:12px 14px 14px}
 .card .primary{font-size:1.15rem;font-weight:800}
 .card .secondary{color:var(--muted);margin-top:1px}
